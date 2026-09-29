@@ -50,9 +50,12 @@ enum RadioStation: String, CaseIterable, Identifiable {
 
 enum AppResources {
     static var bundle: Bundle {
-        if let url = Bundle.main.resourceURL?.appendingPathComponent("LofiMen_LofiMen.bundle"),
-           let bundle = Bundle(url: url) { return bundle }
-        return .module
+        let locations = [Bundle.main.resourceURL, Bundle.main.bundleURL,
+                         Bundle.main.executableURL?.deletingLastPathComponent()]
+        for location in locations.compactMap({ $0 }) {
+            if let bundle = Bundle(url: location.appendingPathComponent("LofiMen_LofiMen.bundle")) { return bundle }
+        }
+        return .main
     }
 
     private static let artworks: [RadioStation: NSImage] = Dictionary(uniqueKeysWithValues:

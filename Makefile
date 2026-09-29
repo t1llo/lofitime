@@ -26,8 +26,9 @@ test: ## Run timer, activity, and preference tests (no network needed)
 check: test build ## Test, release-build, and verify the app bundle
 	plutil -lint "$(APP)/Contents/Info.plist"
 	codesign --verify --deep --strict "$(APP)"
-	@test -f "$(APP)/Contents/Resources/LofiMen_LofiMen.bundle/player.html"
+	@test -f "$(APP)/Contents/Resources/LofiMen_LofiMen.bundle/player.html" || test -f "$(APP)/Contents/Resources/LofiMen_LofiMen.bundle/Contents/Resources/player.html"
 	@test -f "$(APP)/Contents/Resources/AppIcon.icns"
+	@python3 -c 'import pathlib,re; data=pathlib.Path("$(APP)/Contents/MacOS/LofiMen").read_bytes(); assert not re.search(rb"/Users/|/home/|/private/(var|tmp)/", data), "Release binary contains local build paths"'
 	@echo "All checks passed. Open build/Lofi Men.app or run make run."
 
 smoke: debug ## Exercise native timer + real YouTube playback (requires internet)

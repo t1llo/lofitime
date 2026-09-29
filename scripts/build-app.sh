@@ -9,8 +9,10 @@ if [[ "$CONFIGURATION" != "release" && "$CONFIGURATION" != "debug" ]]; then
     exit 1
 fi
 
-swift build --configuration "$CONFIGURATION" --product LofiMen
-BIN_DIR="$(swift build --configuration "$CONFIGURATION" --show-bin-path)"
+args=(--configuration "$CONFIGURATION" --product LofiMen --disable-keychain)
+if [[ "${LOFITIME_UNIVERSAL:-0}" == 1 ]]; then args+=(--arch arm64 --arch x86_64); fi
+swift build "${args[@]}"
+BIN_DIR="$(swift build "${args[@]}" --show-bin-path)"
 APP="$ROOT/build/Lofi Men.app"
 STAGING="$ROOT/build/.Lofi Men.staging.app"
 rm -rf "$STAGING"
@@ -24,6 +26,9 @@ if [[ ! -f "$ROOT/build/AppIcon.icns" || scripts/create-icon.swift -nt "$ROOT/bu
     iconutil -c icns "$ROOT/build/AppIcon.iconset" -o "$ROOT/build/AppIcon.icns"
 fi
 cp "$ROOT/build/AppIcon.icns" "$STAGING/Contents/Resources/AppIcon.icns"
+if [[ "$CONFIGURATION" == release ]]; then
+    xcrun strip -S -x "$STAGING/Contents/MacOS/LofiMen"
+fi
 codesign --force --deep --sign - "$STAGING"
 rm -rf "$APP"
 mv "$STAGING" "$APP"
