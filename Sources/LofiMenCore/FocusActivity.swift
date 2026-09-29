@@ -18,9 +18,9 @@ public struct ActivityDay: Identifiable, Sendable {
     }
 }
 
-/// The last 60 local-calendar days, laid out Sunday-first like GitHub.
+/// The last 80 local-calendar days, laid out Sunday-first like GitHub.
 public struct FocusActivity: Sendable {
-    public static let historyDays = 60
+    public static let historyDays = 80
     public let weeks: [[ActivityDay]]
     public let startDate: Date
     public let endDate: Date

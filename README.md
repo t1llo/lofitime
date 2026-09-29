@@ -26,13 +26,13 @@ Update archives and feeds are EdDSA-signed, and apps are Developer ID-signed and
 
 - **Four live genres** from Lofi Girl: Chill house (the default), Study lo-fi, Sleepy lo-fi, and Synthwave. Streamed inside the app using the official YouTube player; select a genre from the dropdown at the top. Your last selection is remembered.
 - **A compact 700 × 540 studio** with a sidebar for Studio, Activity, and Settings.
-- **A 320 × 360 menu-bar panel** with a dedicated music play/pause button, volume, and editable focus timer.
+- **A 320 × 360 menu-bar panel** with a darker backdrop, bolder countdown, and a simple station selector above music, volume, and timer controls.
 - **Dimmed live video backgrounds** in the studio and menu-bar panel, with high-contrast controls over the stream and YouTube's title/controls cropped out. Paused or loading streams show station artwork. The same player moves between windows without restarting playback.
 - **Soft, rounded typography** throughout the interface and countdown, with a clean, underline-free timer.
 - **Settings inside the menu-bar panel**: use the sliders icon to edit saved focus/break lengths, cycle length, automatic breaks, music behavior, and theme.
 - **Pomodoro sessions** with customizable focus, short-break, and long-break durations. Defaults: 25 / 5 / 15 minutes, with a longer break every four completed focus sessions.
 - **Candlelight** by default: warm charcoal, cream, amber, and muted sage, with **Catppuccin Mocha** available in Settings. The selection applies to the app and menu-bar panel and is saved between launches. Previous Tokyo Night preferences migrate to Candlelight.
-- **GitHub-style focus activity**: the last 60 days of completed sessions, with larger day squares and intensity based on focused time. Hover a square for totals or click it to see that day's sessions. Older session history stays saved.
+- **GitHub-style focus activity**: the last 80 days of completed sessions, with larger day squares and intensity based on focused time. Hover a square for totals or click it to see that day's sessions. Older session history stays saved.
 - **Exact timer entry**: type minutes (`45`) or minutes and seconds (`25:30`) directly into the countdown. Press Return or Start to apply it. Pause a running timer to edit its time.
 - **Launch at login** is enabled on the first normal launch and can be changed in Settings. Later launches respect your choice in macOS Login Items.
 - **Session notifications**: the app asks for macOS notification permission on its first normal launch. Choose **Allow** for focus/break completion banners; change the preference in Settings, with a shortcut to macOS notification settings if permission was denied.
@@ -46,7 +46,7 @@ While listening, the player keeps background stream processing active and checks
 
 A duration entered through the countdown applies to that session. Reset keeps your chosen duration; the next focus/break uses its saved default. Changing a paused duration starts it over. You can add an optional session name at the bottom of the studio. In Settings or the menu-bar settings panel, type a default duration and press Return or leave the field to save it.
 
-Click the genre name to switch streams. The round music button plays/pauses the radio independently of the timer. The video icon opens the uncropped video with the app's playback controls below it; **Back to timer** restores the overlay.
+Click the genre name to switch streams. The round music button plays/pauses the radio independently of the timer. The studio's video icon opens the uncropped video with the app's playback controls below it; **Back to timer** restores the overlay.
 
 ## Build and test
 
@@ -107,7 +107,7 @@ Open `Package.swift` in Xcode to explore the project, or edit it in any editor a
 
 ## Radio and artwork
 
-Playback needs an internet connection. YouTube may present its normal player prompts; use the video icon in either window to access them. Connection failures appear in both the studio and menu-bar panel with a retry control.
+Playback needs an internet connection. YouTube may present its normal player prompts; use the studio's video icon to access them. Connection failures appear in both the studio and menu-bar panel with a retry control.
 
 The station IDs in `Sources/LofiMen/RadioPlayer.swift` were checked against Lofi Girl's live channel on September 29, 2026. If Lofi Girl replaces a stream, update the corresponding `RadioStation.videoID` there and rebuild. The player supplies a stable app referrer and uses load-specific message IDs so a previous station's delayed events cannot pause the next one.
 

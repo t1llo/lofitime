@@ -29,7 +29,7 @@ struct FocusTimerTests {
             ("Completion boundary and repeated start are exact", exactBoundary),
             ("Typed durations accept exact seconds and reject invalid input", durationInput),
             ("Custom durations persist, reset, and complete precisely", customDuration),
-            ("Activity aggregates sessions over the last 60 days", activityAggregation),
+            ("Activity aggregates sessions over the last 80 days", activityAggregation),
             ("Activity excludes old and future records", activityRange),
             ("Activity respects local days across daylight-saving changes", activityTimeZone),
             ("Existing preferences migrate and theme choice persists", preferenceMigration)
@@ -202,10 +202,10 @@ struct FocusTimerTests {
         ]
         let activity = FocusActivity(records: records, through: now, calendar: calendar)
         let days = activity.weeks.flatMap { $0 }
-        try expectEqual(activity.weeks.count, 10)
+        try expectEqual(activity.weeks.count, 12)
         try expectEqual(activity.weeks.allSatisfy { $0.count == 7 }, true)
-        try expectEqual(days.filter(\.isInRange).count, 60)
-        try expectEqual(Set(days.map(\.date)).count, 70)
+        try expectEqual(days.filter(\.isInRange).count, 80)
+        try expectEqual(Set(days.map(\.date)).count, 84)
         try expectEqual(activity.weeks.allSatisfy { calendar.component(.weekday, from: $0[0].date) == 1 }, true)
         try expectEqual(activity.totalSessions, 3)
         try expectEqual(activity.totalDuration, 3_030)
@@ -218,7 +218,7 @@ struct FocusTimerTests {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let now = ISO8601DateFormatter().date(from: "2026-09-29T12:00:00Z")!
-        let firstDay = calendar.date(from: DateComponents(year: 2026, month: 8, day: 1))!
+        let firstDay = calendar.date(from: DateComponents(year: 2026, month: 7, day: 12))!
         let records = [firstDay.addingTimeInterval(-1), firstDay, now, now.addingTimeInterval(1)].map {
             SessionRecord(finishedAt: $0, duration: 60, intention: "Boundary")
         }
@@ -231,11 +231,11 @@ struct FocusTimerTests {
         try expectEqual(empty.totalSessions, 0)
         try expectEqual(empty.weeks.flatMap { $0 }.allSatisfy { $0.level == 0 }, true)
         let leapYear = FocusActivity(records: [], through: ISO8601DateFormatter().date(from: "2024-03-31T12:00:00Z")!, calendar: calendar)
-        try expectEqual(leapYear.startDate, calendar.date(from: DateComponents(year: 2024, month: 2, day: 1))!)
-        try expectEqual(leapYear.weeks.flatMap { $0 }.filter(\.isInRange).count, 60)
+        try expectEqual(leapYear.startDate, calendar.date(from: DateComponents(year: 2024, month: 1, day: 12))!)
+        try expectEqual(leapYear.weeks.flatMap { $0 }.filter(\.isInRange).count, 80)
         let newYear = FocusActivity(records: [], through: ISO8601DateFormatter().date(from: "2026-01-15T12:00:00Z")!, calendar: calendar)
-        try expectEqual(newYear.startDate, calendar.date(from: DateComponents(year: 2025, month: 11, day: 17))!)
-        try expectEqual(newYear.weeks.flatMap { $0 }.filter(\.isInRange).count, 60)
+        try expectEqual(newYear.startDate, calendar.date(from: DateComponents(year: 2025, month: 10, day: 28))!)
+        try expectEqual(newYear.weeks.flatMap { $0 }.filter(\.isInRange).count, 80)
     }
 
     static func activityTimeZone() throws {

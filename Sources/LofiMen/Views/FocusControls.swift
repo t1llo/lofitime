@@ -19,9 +19,9 @@ struct FocusControls: View {
                         editing = false
                         model.selectMode(mode)
                     } label: {
-                        Text(mode.title).font(.room(size: 10, weight: .medium))
+                        Text(mode.title).font(.room(size: 10, weight: compact ? .semibold : .medium))
                             .frame(maxWidth: .infinity).frame(height: compact ? 25 : 29)
-                            .foregroundStyle(model.timer.mode == mode ? theme.text : theme.text.opacity(0.55))
+                            .foregroundStyle(model.timer.mode == mode ? theme.text : theme.text.opacity(compact ? 0.82 : 0.55))
                             .background(model.timer.mode == mode ? theme.accent.opacity(0.2) : .clear,
                                         in: RoundedRectangle(cornerRadius: 7))
                     }.buttonStyle(.plain).accessibilityAddTraits(model.timer.mode == mode ? .isSelected : [])
@@ -44,11 +44,11 @@ struct FocusControls: View {
                             .accessibilityIdentifier("session-duration")
                     }
                 }
-                .font(.room(size: compact ? 52 : 68)).monospacedDigit().tracking(-1.5)
+                .font(.room(size: compact ? 52 : 68, weight: compact ? .semibold : .regular)).monospacedDigit().tracking(-1.5)
                 .foregroundStyle(theme.text).frame(height: compact ? 62 : 83)
                 .shadow(color: .black.opacity(0.2), radius: 12, y: 3)
 
-                Text(caption).font(.room(size: 9)).foregroundStyle(valid || model.timer.status == .running ? theme.text.opacity(0.75) : theme.amber)
+                Text(caption).font(.room(size: compact ? 10 : 9)).foregroundStyle(valid || model.timer.status == .running ? theme.text.opacity(compact ? 0.85 : 0.75) : theme.amber)
                     .frame(height: compact ? 14 : 17)
             }
 

@@ -18,7 +18,7 @@ struct VideoFocusScene: View {
                 .allowsHitTesting(showingVideo)
 
             if !showingVideo {
-                Color.black.opacity(compact ? 0.44 : 0.34).allowsHitTesting(false)
+                Color.black.opacity(compact ? 0.62 : 0.34).allowsHitTesting(false)
                 LinearGradient(stops: [
                     .init(color: .black.opacity(0.18), location: 0),
                     .init(color: .clear, location: 0.25),
@@ -70,10 +70,12 @@ struct VideoFocusScene: View {
                 Spacer()
             } else {
                 VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 5) {
-                        Circle().fill(model.player.isPlaying ? theme.activity : .white.opacity(0.5)).frame(width: 4, height: 4)
-                        Text("GENRE · LOFI GIRL").font(.room(size: 8, weight: .medium)).tracking(1)
-                    }.foregroundStyle(.white.opacity(0.75))
+                    if !compact {
+                        HStack(spacing: 5) {
+                            Circle().fill(model.player.isPlaying ? theme.activity : .white.opacity(0.5)).frame(width: 4, height: 4)
+                            Text("GENRE · LOFI GIRL").font(.room(size: 8, weight: .medium)).tracking(1)
+                        }.foregroundStyle(.white.opacity(0.75))
+                    }
                     Menu {
                         ForEach(RadioStation.allCases) { station in
                             Button { model.player.select(station) } label: {
@@ -81,15 +83,17 @@ struct VideoFocusScene: View {
                             }
                         }
                     } label: {
-                        Text(model.player.station.title).font(.room(size: 14, weight: .medium))
+                        Text(model.player.station.title).font(.room(size: compact ? 15 : 14, weight: compact ? .semibold : .medium))
                     }.menuStyle(.borderlessButton).fixedSize().tint(theme.text)
                         .help("Choose a genre").accessibilityLabel("Genre: \(model.player.station.title)")
                 }.shadow(color: .black.opacity(0.4), radius: 5)
                 Spacer(minLength: 0)
-                OverlayIconButton(symbol: "rectangle.inset.filled", label: "Show full video", size: compact ? 26 : 30) {
-                    showingSettings = false
-                    showingVideo = true
-                    if !model.player.hasLoaded { model.player.play() }
+                if !compact {
+                    OverlayIconButton(symbol: "rectangle.inset.filled", label: "Show full video") {
+                        showingSettings = false
+                        showingVideo = true
+                        if !model.player.hasLoaded { model.player.play() }
+                    }
                 }
                 OverlayIconButton(symbol: showingSettings ? "xmark" : "slider.horizontal.3", label: showingSettings ? "Close settings" : "Timer settings", size: compact ? 26 : 30) {
                     showingSettings.toggle()
@@ -110,9 +114,11 @@ struct VideoFocusScene: View {
                             .background(theme.text, in: Circle())
                         VStack(alignment: .leading, spacing: 4) {
                             Text(model.player.isLoading ? "Connecting…" : model.player.isPlaying ? "Pause music" : "Play music")
-                                .font(.room(size: 11, weight: .medium))
-                            Text(model.player.isPlaying ? "Lofi Girl · live" : "Lofi Girl radio")
-                                .font(.room(size: 9)).foregroundStyle(.white.opacity(0.65))
+                                .font(.room(size: compact ? 12 : 11, weight: .medium))
+                            if !compact {
+                                Text(model.player.isPlaying ? "Lofi Girl · live" : "Lofi Girl radio")
+                                    .font(.room(size: 9)).foregroundStyle(.white.opacity(0.65))
+                            }
                         }
                     }.foregroundStyle(theme.text)
                 }.buttonStyle(.plain)
@@ -163,7 +169,7 @@ struct VideoFocusScene: View {
                 Button("Quit Lofitime") { NSApp.terminate(nil) }
             } label: { Image(systemName: "ellipsis").frame(width: 20, height: 16) }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().help("More options")
-        }.font(.room(size: 9)).foregroundStyle(.white.opacity(0.65))
+        }.font(.room(size: compact ? 10 : 9)).foregroundStyle(.white.opacity(compact ? 0.85 : 0.65))
     }
 }
 

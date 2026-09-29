@@ -468,7 +468,7 @@ enum DebugTools {
     @MainActor private static func renderActivityExample(to url: URL) async throws {
         let now = Date()
         let calendar = Calendar.current
-        let records = (0..<70).flatMap { offset -> [SessionRecord] in
+        let records = (0..<FocusActivity.historyDays).flatMap { offset -> [SessionRecord] in
             let count = (offset * 7 + offset / 9) % 6
             let date = calendar.date(byAdding: .day, value: -offset, to: now)!
             return (0..<count).map { _ in SessionRecord(finishedAt: date, duration: 1_500, intention: "Example session") }
