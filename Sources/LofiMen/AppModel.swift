@@ -183,7 +183,7 @@ final class AppModel {
         notificationError = nil
         guard enabled else { preferences.notifications = false; return }
         guard Bundle.main.bundleIdentifier != nil else {
-            notificationError = "Open the bundled Lofi Men app to enable notifications."
+            notificationError = "Open the bundled Lofitime app to enable notifications."
             return
         }
         Task {
@@ -191,7 +191,7 @@ final class AppModel {
                 let allowed = try await UNUserNotificationCenter.current()
                     .requestAuthorization(options: [.alert])
                 preferences.notifications = allowed
-                if !allowed { notificationError = "Allow Lofi Men in System Settings → Notifications." }
+                if !allowed { notificationError = "Allow Lofitime in System Settings → Notifications." }
             } catch {
                 notificationError = error.localizedDescription
             }
@@ -201,7 +201,7 @@ final class AppModel {
     private func notify(_ message: String) {
         guard Bundle.main.bundleIdentifier != nil else { return }
         let content = UNMutableNotificationContent()
-        content.title = "Lofi Men · \(timer.mode == .focus ? "Back to focus" : "Time to unwind")"
+        content.title = "Lofitime · \(timer.mode == .focus ? "Back to focus" : "Time to unwind")"
         content.body = message
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request)

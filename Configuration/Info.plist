@@ -2,8 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key><string>Lofi Men</string>
-    <key>CFBundleDisplayName</key><string>Lofi Men</string>
+    <key>CFBundleName</key><string>Lofitime</string>
+    <key>CFBundleDisplayName</key><string>Lofitime</string>
     <key>CFBundleExecutable</key><string>LofiMen</string>
     <key>CFBundleIdentifier</key><string>com.lofimen.app</string>
     <key>CFBundlePackageType</key><string>APPL</string>
@@ -11,6 +11,14 @@
     <key>CFBundleVersion</key><string>1</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>SUFeedURL</key><string>https://github.com/t1llo/lofitime/releases/latest/download/appcast.xml</string>
+    <key>SUPublicEDKey</key><string>9cqTlVHOTN7K0dnObTkaU6b5eAggO6K2rWlDasxPopI=</string>
+    <key>SUEnableAutomaticChecks</key><true/>
+    <key>SUAutomaticallyUpdate</key><true/>
+    <key>SUScheduledCheckInterval</key><integer>3600</integer>
+    <key>SUVerifyUpdateBeforeExtraction</key><true/>
+    <key>SURequireSignedFeed</key><true/>
+    <key>SUEnableSystemProfiling</key><false/>
     <key>NSHighResolutionCapable</key><true/>
     <key>NSPrincipalClass</key><string>NSApplication</string>
     <key>NSHumanReadableCopyright</key><string>Music and stream artwork by Lofi Girl. Not affiliated with Lofi Girl or YouTube.</string>

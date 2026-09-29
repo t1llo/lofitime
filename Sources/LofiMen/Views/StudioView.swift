@@ -81,7 +81,7 @@ struct StudioView: View {
     private func applyCompactWindowSize() {
         guard !DebugTools.requested, !UserDefaults.standard.bool(forKey: "compactLayout.v3") else { return }
         DispatchQueue.main.async {
-            guard let window = NSApp.windows.first(where: { $0.title == "Lofi Men" }) else { return }
+            guard let window = NSApp.windows.first(where: { $0.title == "Lofitime" }) else { return }
             window.setContentSize(NSSize(width: 700, height: 540))
             window.center()
             UserDefaults.standard.set(true, forKey: "compactLayout.v3")

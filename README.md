@@ -1,10 +1,10 @@
-# Lofi Men
+# Lofitime
 
 A native **macOS menu-bar app** for lo-fi music and focus timers, built with SwiftUI.
 
 ## Start here
 
-Requires **macOS 14+** and **Swift 6+** (recent Apple Command Line Tools or Xcode). There are no third-party package dependencies.
+Requires **macOS 14+** and **Swift 6+** (recent Apple Command Line Tools or Xcode). Swift Package Manager fetches the pinned Sparkle 2.10.0 updater on the first build.
 
 ```sh
 # If Apple's developer tools aren't installed yet:
@@ -14,7 +14,13 @@ xcode-select --install
 make run
 ```
 
-The app is created at **`build/Lofi Men.app`**. You can also double-click it in Finder. Builds include artwork, the embedded player, a generated app icon, and a local ad-hoc signature.
+The app is created at **`build/Lofitime.app`**. You can also double-click it in Finder. Local builds include artwork, the embedded player, Sparkle, a generated app icon, and an ad-hoc signature. Published downloads use Developer ID signing and Apple notarization.
+
+## App updates
+
+Install **Lofitime.app** from a signed release into Applications. It checks for updates every hour and automatically downloads verified updates, which install when the app quits. Sparkle can also offer **Install and Relaunch**. Use **Check for Updates…** in the app menu or the panel's `…` menu to check immediately; automatic checking and installation can be changed in Settings.
+
+Update archives and feeds are EdDSA-signed, and apps are Developer ID-signed and notarized. The app contains only the public verification key. The feed is `https://github.com/t1llo/lofitime/releases/latest/download/appcast.xml`; automatic downloads work once this repository is public. Install an updater-enabled release once if you are upgrading from the original release without Sparkle.
 
 ## Your little studio
 
@@ -30,7 +36,7 @@ The app is created at **`build/Lofi Men.app`**. You can also double-click it in 
 - **Exact timer entry**: type minutes (`45`) or minutes and seconds (`25:30`) directly into the countdown. Press Return or Start to apply it. Pause a running timer to edit its time.
 - Optional automatic session transitions, music when focusing, completion chimes, and macOS notifications.
 
-Click play to just listen, or **Start focus** to begin a session. Closing the studio keeps the app and music in your menu bar. Use **Open studio** to bring it back, or choose **Quit Lofi Men** from the panel's `…` menu.
+Click play to just listen, or **Start focus** to begin a session. Closing the studio keeps the app and music in your menu bar. Use **Open studio** to bring it back, or choose **Quit Lofitime** from the panel's `…` menu.
 
 The timer uses a deadline rather than subtracting seconds, so it stays accurate when the app is hidden or the Mac sleeps. Active sessions, preferences, and completed-session history are stored locally. Music starts only when you ask it to. A skipped or reset session doesn't count toward your focus history.
 
@@ -43,7 +49,7 @@ Click the genre name to switch streams. The round music button plays/pauses the 
 | Command | What it does |
 | --- | --- |
 | `make run` | Release-build, restart the running app, and open it |
-| `make build` | Create `build/Lofi Men.app` |
+| `make build` | Create `build/Lofitime.app` |
 | `make dev` | Build and launch a debug app |
 | `make test` | Run deterministic timer, activity, and preference-migration tests |
 | `make check` | Run tests, release-build, and verify the signature and bundle resources |
@@ -69,7 +75,7 @@ Click the genre name to switch streams. The round music button plays/pauses the 
 
 ### Keyboard shortcuts
 
-When Lofi Men is the active app:
+When Lofitime is the active app:
 
 | Shortcut | Action |
 | --- | --- |
@@ -101,4 +107,4 @@ Playback needs an internet connection. YouTube may present its normal player pro
 
 The station IDs in `Sources/LofiMen/RadioPlayer.swift` were checked against Lofi Girl's live channel on September 29, 2026. If Lofi Girl replaces a stream, update the corresponding `RadioStation.videoID` there and rebuild. The player supplies a stable app referrer and uses load-specific message IDs so a previous station's delayed events cannot pause the next one.
 
-Music and station artwork belong to **[Lofi Girl](https://www.youtube.com/@LofiGirl)**. See [ATTRIBUTION.md](ATTRIBUTION.md). Lofi Men is an independent project.
+Music and station artwork belong to **[Lofi Girl](https://www.youtube.com/@LofiGirl)**. See [ATTRIBUTION.md](ATTRIBUTION.md). Lofitime is an independent project. Sparkle's license is included in the app's Resources directory.

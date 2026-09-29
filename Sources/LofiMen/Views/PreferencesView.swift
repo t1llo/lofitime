@@ -4,6 +4,7 @@ import SwiftUI
 struct PreferencesView: View {
     @Environment(\.roomTheme) private var theme
     @Bindable var model: AppModel
+    @ObservedObject private var updater = UpdateService.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -49,6 +50,17 @@ struct PreferencesView: View {
                     Text(error).font(.room(size: 11)).foregroundStyle(theme.amber)
                 }
                 preferenceToggle("Show countdown in the menu bar", value: $model.preferences.showMenuBarCountdown)
+            }.roomCard(padding: 16)
+
+            VStack(alignment: .leading, spacing: 18) {
+                Text("Software updates").font(.room(size: 13, weight: .medium))
+                preferenceToggle("Check for updates automatically", value: Binding(
+                    get: { updater.automaticChecks }, set: updater.setAutomaticChecks))
+                preferenceToggle("Download and install updates automatically", value: Binding(
+                    get: { updater.automaticDownloads }, set: updater.setAutomaticDownloads))
+                CheckForUpdatesButton()
+                Text("Updates are checked hourly and installed when the app quits. You can also choose to install and relaunch from the update prompt.")
+                    .font(.room(size: 10)).foregroundStyle(theme.muted)
             }.roomCard(padding: 16)
         }
     }

@@ -159,7 +159,9 @@ struct VideoFocusScene: View {
             Spacer()
             Menu {
                 Button("Skip session") { model.skipSession() }
-                Button("Quit Lofi Men") { NSApp.terminate(nil) }
+                Divider()
+                CheckForUpdatesButton()
+                Button("Quit Lofitime") { NSApp.terminate(nil) }
             } label: { Image(systemName: "ellipsis").frame(width: 20, height: 16) }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().help("More options")
         }.font(.room(size: 9)).foregroundStyle(.white.opacity(0.65))

@@ -9,7 +9,7 @@ struct LofiMenApp: App {
     @State private var model = DebugTools.makeModel()
 
     var body: some Scene {
-        Window("Lofi Men", id: "studio") {
+        Window("Lofitime", id: "studio") {
             StudioView(model: model)
                 .task { DebugTools.runIfRequested(model: model) }
         }
@@ -42,6 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             UNUserNotificationCenter.current().delegate = self
         }
         DebugTools.prepareLaunch()
+        UpdateService.shared.start()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
@@ -63,6 +64,9 @@ private struct RoomCommands: Commands {
     @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
+        CommandGroup(after: .appInfo) {
+            CheckForUpdatesButton()
+        }
         CommandGroup(replacing: .newItem) {
             Button("Open My Studio") { show(.studio) }.keyboardShortcut("1", modifiers: .command)
         }

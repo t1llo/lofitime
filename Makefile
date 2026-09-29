@@ -1,12 +1,12 @@
 SHELL := /bin/bash
 CONFIGURATION ?= release
-APP := build/Lofi Men.app
+APP := build/Lofitime.app
 
 .PHONY: help build debug run dev test check smoke preview install clean
 .DEFAULT_GOAL := help
 
 help: ## Show the available commands
-	@awk 'BEGIN {FS = ":.*## "; printf "\n  Lofi Men — a little space for you\n\n"} /^[a-zA-Z_-]+:.*## / {printf "  make %-10s %s\n", $$1, $$2} END {print ""}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*## "; printf "\n  Lofitime — a little space for you\n\n"} /^[a-zA-Z_-]+:.*## / {printf "  make %-10s %s\n", $$1, $$2} END {print ""}' $(MAKEFILE_LIST)
 
 build: ## Build and locally sign a release .app in build/
 	@./scripts/build-app.sh "$(CONFIGURATION)"
@@ -26,9 +26,10 @@ test: ## Run timer, activity, and preference tests (no network needed)
 check: test build ## Test, release-build, and verify the app bundle
 	plutil -lint "$(APP)/Contents/Info.plist"
 	codesign --verify --deep --strict "$(APP)"
-	@test -f "$(APP)/Contents/Resources/LofiMen_LofiMen.bundle/player.html"
+	@test -f "$(APP)/Contents/Resources/LofiMen_LofiMen.bundle/player.html" || test -f "$(APP)/Contents/Resources/LofiMen_LofiMen.bundle/Contents/Resources/player.html"
+	@test -f "$(APP)/Contents/Frameworks/Sparkle.framework/Sparkle"
 	@test -f "$(APP)/Contents/Resources/AppIcon.icns"
-	@echo "All checks passed. Open build/Lofi Men.app or run make run."
+	@echo "All checks passed. Open build/Lofitime.app or run make run."
 
 smoke: debug ## Exercise native timer + real YouTube playback (requires internet)
 	@"$(APP)/Contents/MacOS/LofiMen" --smoke-test
@@ -38,7 +39,7 @@ preview: debug ## Render native studio, menu-bar, sessions, and settings PNGs
 
 install: build ## Copy the app into ~/Applications
 	mkdir -p "$(HOME)/Applications"
-	ditto "$(APP)" "$(HOME)/Applications/Lofi Men.app"
+	ditto "$(APP)" "$(HOME)/Applications/Lofitime.app"
 
 clean: ## Remove generated builds and previews
 	rm -rf .build build

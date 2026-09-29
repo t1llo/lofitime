@@ -8,9 +8,9 @@ if pgrep -x LofiMen >/dev/null; then
         sleep 0.1
     done
     if pgrep -x LofiMen >/dev/null; then
-        echo "Lofi Men is still quitting. Try make run again in a moment." >&2
+        echo "Lofitime is still quitting. Try make run again in a moment." >&2
         exit 1
     fi
 fi
 # Avoid Launch Services trying to reactivate the just-terminated process.
-open -n "$ROOT/build/Lofi Men.app"
+open -n "$ROOT/build/Lofitime.app"

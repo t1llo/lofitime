@@ -30,7 +30,7 @@ enum DebugTools {
         // Diagnostics need a studio even in that case, before its .task can run.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             guard !hasRun else { return }
-            if let window = NSApp.windows.first(where: { $0.title == "Lofi Men" }) {
+            if let window = NSApp.windows.first(where: { $0.title == "Lofitime" }) {
                 window.makeKeyAndOrderFront(nil)
             } else if let menu = NSApp.mainMenu?.items.compactMap(\.submenu).first(where: {
                 $0.items.contains(where: { $0.title == "Open My Studio" })
@@ -146,7 +146,7 @@ enum DebugTools {
         model.banner = nil
         await smokeNavigation(model)
         try? await Task.sleep(for: .milliseconds(300))
-        if let window = NSApp.windows.first(where: { $0.title == "Lofi Men" }),
+        if let window = NSApp.windows.first(where: { $0.title == "Lofitime" }),
            let field = textFields(in: window.contentView).first(where: { $0.stringValue == "25:00" }) {
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -327,7 +327,7 @@ enum DebugTools {
             if model.player.isPlaying { break }
         }
         guard model.player.isPlaying else { smokeFailure("Player did not resume before closing the window"); return }
-        NSApp.windows.first { $0.title == "Lofi Men" }?.close()
+        NSApp.windows.first { $0.title == "Lofitime" }?.close()
         try? await Task.sleep(for: .seconds(3))
         let background = try? await model.player.webView.evaluateJavaScript("player.getPlayerState()")
         guard background as? Int == 1 else {
@@ -356,7 +356,7 @@ enum DebugTools {
 
         AppDelegate.openStudio?()
         try? await Task.sleep(for: .seconds(1))
-        guard NSApp.windows.contains(where: { $0.title == "Lofi Men" && $0.isVisible }) else {
+        guard NSApp.windows.contains(where: { $0.title == "Lofitime" && $0.isVisible }) else {
             smokeFailure("The studio did not reopen")
             return
         }
@@ -368,7 +368,7 @@ enum DebugTools {
     }
 
     @MainActor private static func smokeNavigation(_ model: AppModel) async {
-        guard let window = NSApp.windows.first(where: { $0.title == "Lofi Men" }) else {
+        guard let window = NSApp.windows.first(where: { $0.title == "Lofitime" }) else {
             smokeFailure("The studio is missing for the navigation check"); return
         }
         window.makeKeyAndOrderFront(nil)
