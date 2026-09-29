@@ -3,3 +3,14 @@ build/
 .DS_Store
 .swiftpm/
 *.xcuserstate
+.env
+.env.*
+!.env.example
+*.p8
+*.p12
+*.pfx
+*.pem
+*.key
+*.keychain
+*.keychain-db
+*.mobileprovision

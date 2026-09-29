@@ -30,6 +30,9 @@ if [[ ! -f "$ROOT/build/AppIcon.icns" || scripts/create-icon.swift -nt "$ROOT/bu
     iconutil -c icns "$ROOT/build/AppIcon.iconset" -o "$ROOT/build/AppIcon.icns"
 fi
 cp "$ROOT/build/AppIcon.icns" "$STAGING/Contents/Resources/AppIcon.icns"
+if [[ "$CONFIGURATION" == release ]]; then
+    xcrun strip -S -x "$STAGING/Contents/MacOS/LofiMen"
+fi
 bash scripts/sign-app.sh "$STAGING" "${LOFITIME_SIGN_IDENTITY:--}"
 rm -rf "$APP"
 mv "$STAGING" "$APP"

@@ -1,54 +1,56 @@
 # Lofitime
 
-A native **macOS menu-bar app** for lo-fi music and focus timers, built with SwiftUI.
+**A little music. A little more focus.** A native macOS menu-bar app for lo-fi radio and Pomodoro timers, built with SwiftUI.
 
-## Start here
+[Website](https://lofi.beffa.xyz) · [Download for Mac](https://github.com/t1llo/lofitime/releases/latest) · [Releases](https://github.com/t1llo/lofitime/releases)
 
-Requires **macOS 14+** and **Swift 6+** (recent Apple Command Line Tools or Xcode). Swift Package Manager fetches the pinned Sparkle 2.10.0 updater on the first build.
+## Install
+
+[Download the latest release](https://github.com/t1llo/lofitime/releases/latest).
+
+Requires **macOS 14 or later**. Open the DMG and drag **Lofitime.app** into **Applications**. Releases support Apple Silicon and Intel Macs and are signed and notarized.
+
+## Screenshots
+
+<img src="https://lofi.beffa.xyz/assets/studio-candlelight.webp" alt="Lofitime studio with a break timer and lo-fi music controls" width="700">
+
+<img src="https://lofi.beffa.xyz/assets/menu-bar-candlelight.webp" alt="Lofitime's compact menu-bar timer and music player" width="320">
+
+## Features
+
+- Four live stations: Chill house, Study lo-fi, Sleepy lo-fi, and Synthwave.
+- A compact studio and menu-bar panel with live video backgrounds and independent music controls.
+- Customizable Pomodoro cycles, with default focus and break durations of 25 / 5 / 15 minutes.
+- Editable countdowns: enter minutes (`45`) or minutes and seconds (`25:30`).
+- An **80-day activity grid** with daily focus totals and session history.
+- Candlelight and Catppuccin Mocha themes.
+- Launch at login, completion notifications, chimes, and optional automatic session transitions.
+- Automatic updates, configurable in Settings.
+
+## Using Lofitime
+
+Choose a station and press **Play music** to listen, or **Start focus** to begin a session. Music and timer controls work independently. Closing the studio keeps the app in your menu bar; choose **Open studio** to return.
+
+Type a duration directly into the countdown and press Return or Start to apply it. Pause a running timer before editing its time. A custom duration applies to the current session; saved defaults are available in Settings.
+
+Activity squares show completed focus sessions. Hover a square for its totals or click it to see that day's sessions. Older history is retained locally, along with your preferences and current timer. Skipped and reset sessions do not count as completed work.
+
+Allow macOS notifications when prompted to receive completion alerts. Launch at login and notification preferences can be changed in Settings. Use **Check for Updates…** in the app menu or the panel's `…` menu to check for updates immediately.
+
+Radio playback requires an internet connection. Connection errors include a retry control; the studio's video button opens the player for any YouTube prompts.
+
+## Build from source
+
+Requires **Swift 6+** and recent Apple Command Line Tools or Xcode. Swift Package Manager downloads dependencies on the first build.
 
 ```sh
-# If Apple's developer tools aren't installed yet:
-xcode-select --install
-
-# Build the app and launch it:
+xcode-select --install # If developer tools are not already installed
 make run
 ```
 
-The app is created at **`build/Lofitime.app`**. You can also double-click it in Finder. Local builds include artwork, the embedded player, Sparkle, a generated app icon, and an ad-hoc signature. Published downloads use Developer ID signing and Apple notarization.
+The app is built at **`build/Lofitime.app`**. Local builds use an ad-hoc signature.
 
-## App updates
-
-Install **Lofitime.app** from a signed release into Applications. It checks for updates every hour and automatically downloads verified updates, which install when the app quits. Sparkle can also offer **Install and Relaunch**. Use **Check for Updates…** in the app menu or the panel's `…` menu to check immediately; automatic checking and installation can be changed in Settings.
-
-Update archives and feeds are EdDSA-signed, and apps are Developer ID-signed and notarized. The app contains only the public verification key. The feed is `https://github.com/t1llo/lofitime/releases/latest/download/appcast.xml`; automatic downloads work once this repository is public. Install an updater-enabled release once if you are upgrading from the original release without Sparkle.
-
-## Your little studio
-
-- **Four live genres** from Lofi Girl: Chill house (the default), Study lo-fi, Sleepy lo-fi, and Synthwave. Streamed inside the app using the official YouTube player; select a genre from the dropdown at the top. Your last selection is remembered.
-- **A compact 700 × 540 studio** with a sidebar for Studio, Activity, and Settings.
-- **A 320 × 360 menu-bar panel** with a darker backdrop, bolder countdown, and a simple station selector above music, volume, and timer controls.
-- **Dimmed live video backgrounds** in the studio and menu-bar panel, with high-contrast controls over the stream and YouTube's title/controls cropped out. Paused or loading streams show station artwork. The same player moves between windows without restarting playback.
-- **Soft, rounded typography** throughout the interface and countdown, with a clean, underline-free timer.
-- **Settings inside the menu-bar panel**: use the sliders icon to edit saved focus/break lengths, cycle length, automatic breaks, music behavior, and theme.
-- **Pomodoro sessions** with customizable focus, short-break, and long-break durations. Defaults: 25 / 5 / 15 minutes, with a longer break every four completed focus sessions.
-- **Candlelight** by default: warm charcoal, cream, amber, and muted sage, with **Catppuccin Mocha** available in Settings. The selection applies to the app and menu-bar panel and is saved between launches. Previous Tokyo Night preferences migrate to Candlelight.
-- **GitHub-style focus activity**: the last 80 days of completed sessions, with larger day squares and intensity based on focused time. Hover a square for totals or click it to see that day's sessions. Older session history stays saved.
-- **Exact timer entry**: type minutes (`45`) or minutes and seconds (`25:30`) directly into the countdown. Press Return or Start to apply it. Pause a running timer to edit its time.
-- **Launch at login** is enabled on the first normal launch and can be changed in Settings. Later launches respect your choice in macOS Login Items.
-- **Session notifications**: the app asks for macOS notification permission on its first normal launch. Choose **Allow** for focus/break completion banners; change the preference in Settings, with a shortcut to macOS notification settings if permission was denied.
-- Optional automatic session transitions, music when focusing, and completion chimes.
-
-Click play to just listen, or **Start focus** to begin a session. Closing the studio keeps the app and music in your menu bar. Use **Open studio** to bring it back, or choose **Quit Lofitime** from the panel's `…` menu.
-
-The timer uses a deadline rather than subtracting seconds, so it stays accurate when the app is hidden or the Mac sleeps. Active sessions, preferences, and completed-session history are stored locally. Music starts only when you ask it to. A skipped or reset session doesn't count toward your focus history.
-
-While listening, the player keeps background stream processing active and checks playback every five seconds. Unexpected pauses resume automatically; stalled streams reconnect after 30 seconds without progress. Pausing music yourself stops recovery and releases the background activity.
-
-A duration entered through the countdown applies to that session. Reset keeps your chosen duration; the next focus/break uses its saved default. Changing a paused duration starts it over. You can add an optional session name at the bottom of the studio. In Settings or the menu-bar settings panel, type a default duration and press Return or leave the field to save it.
-
-Click the genre name to switch streams. The round music button plays/pauses the radio independently of the timer. The studio's video icon opens the uncropped video with the app's playback controls below it; **Back to timer** restores the overlay.
-
-## Build and test
+### Development commands
 
 | Command | What it does |
 | --- | --- |
@@ -63,21 +65,11 @@ Click the genre name to switch streams. The round music button plays/pauses the 
 | `make clean` | Remove generated files |
 | `make help` | List commands |
 
-`make test` uses a dependency-free Swift executable so it works with Command Line Tools alone, including installations without XCTest. It checks timer transitions, exact duration parsing, persistence, activity aggregation, local-day/DST boundaries, and migration of existing preferences to the new themes. Failed checks exit with a nonzero status.
+Tests run with Command Line Tools alone. Native smoke tests require an internet connection and a logged-in macOS desktop session, use isolated settings, and play briefly at 1% volume. Use `LOFI_BACKGROUND_SECONDS=360 make smoke` for a six-minute background-playback check.
 
-`make smoke` requires an internet connection and a logged-in macOS desktop session. It verifies real sidebar clicks, Activity session display and day filtering, native countdown editing and its keyboard shortcut, actual YouTube playback, video handoff between the studio and menu-bar panel, native pause, background playback, unexpected-pause recovery, changing stations with the window closed, and reopening the studio. Navigation is checked both before and during playback. It uses isolated app settings and plays at **1% volume** for background checks; WebKit intentionally suspends muted autoplay in hidden windows. Use `LOFI_BACKGROUND_SECONDS=360 make smoke` for a six-minute background-playback check. The smoke-test process exits automatically.
+Previews are saved to `build/previews/`. The activity example uses sample data without changing your session history.
 
-`make preview` briefly opens native windows and captures their content, including AppKit controls, without requesting screen-recording access. It includes both themes, the menu-bar timer settings, and an explicitly labeled activity example using sample data. Sample data is only used for that preview; it is never added to your history. Diagnostic commands are available only in debug builds.
-
-### Try a complete Pomodoro
-
-1. Type `0:10` directly into the countdown for a quick ten-second test.
-2. Choose **Start focus** (or press **⌘ Return**) to apply the time and begin.
-3. Close the window and open the waveform icon in your menu bar.
-4. Pause/resume the timer and music independently, then let the session finish.
-5. Open **Activity** to see today's square and the completed session. Click the square to filter the session list.
-
-### Keyboard shortcuts
+## Keyboard shortcuts
 
 When Lofitime is the active app:
 
@@ -91,24 +83,6 @@ When Lofitime is the active app:
 | `⌘ ,` | Open settings |
 | `⌘ Q` | Quit |
 
-## Project map
+## Third-party notices
 
-```text
-Sources/LofiMenCore/        Timer, duration parsing, activity aggregation, preferences
-Sources/LofiMen/            Shared app state, radio service, app lifecycle
-Sources/LofiMen/Views/      Native studio, menu-bar panel, history, preferences
-Sources/LofiMen/Resources/  YouTube bridge and bundled station artwork
-Tests/LofiMenCoreTests/     Deterministic core test runner
-scripts/                   App bundling, launch, and icon generation
-Configuration/Info.plist    macOS app metadata
-```
-
-Open `Package.swift` in Xcode to explore the project, or edit it in any editor and use the Makefile. `make build CONFIGURATION=debug` also selects a debug bundle explicitly.
-
-## Radio and artwork
-
-Playback needs an internet connection. YouTube may present its normal player prompts; use the studio's video icon to access them. Connection failures appear in both the studio and menu-bar panel with a retry control.
-
-The station IDs in `Sources/LofiMen/RadioPlayer.swift` were checked against Lofi Girl's live channel on September 29, 2026. If Lofi Girl replaces a stream, update the corresponding `RadioStation.videoID` there and rebuild. The player supplies a stable app referrer and uses load-specific message IDs so a previous station's delayed events cannot pause the next one.
-
-Music and station artwork belong to **[Lofi Girl](https://www.youtube.com/@LofiGirl)**. See [ATTRIBUTION.md](ATTRIBUTION.md). Lofitime is an independent project. Sparkle's license is included in the app's Resources directory.
+See [ATTRIBUTION.md](ATTRIBUTION.md) for media ownership and dependency notices.
