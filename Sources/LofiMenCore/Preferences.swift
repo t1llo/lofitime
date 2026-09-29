@@ -1,14 +1,14 @@
 import Foundation
 
 public enum AppAppearance: String, CaseIterable, Codable, Identifiable, Sendable {
-    case tokyoNight, catppuccin
+    case candlelight, catppuccin
     public var id: String { rawValue }
-    public var title: String { self == .tokyoNight ? "Tokyo Night" : "Catppuccin" }
+    public var title: String { self == .candlelight ? "Candlelight" : "Catppuccin" }
 }
 
 public struct Preferences: Codable, Sendable {
     public var timer = FocusConfiguration()
-    public var appearance: AppAppearance = .tokyoNight
+    public var appearance: AppAppearance = .candlelight
     public var autoStartBreaks = false
     public var autoStartFocus = false
     public var startMusicWithFocus = true
@@ -27,8 +27,8 @@ public struct Preferences: Codable, Sendable {
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         timer = try values.decodeIfPresent(FocusConfiguration.self, forKey: .timer) ?? .init()
-        // Adding a theme must not erase existing timer and notification preferences.
-        appearance = (try? values.decode(AppAppearance.self, forKey: .appearance)) ?? .tokyoNight
+        // The former Tokyo Night default and unknown themes migrate without losing other preferences.
+        appearance = (try? values.decode(AppAppearance.self, forKey: .appearance)) ?? .candlelight
         autoStartBreaks = try values.decodeIfPresent(Bool.self, forKey: .autoStartBreaks) ?? false
         autoStartFocus = try values.decodeIfPresent(Bool.self, forKey: .autoStartFocus) ?? false
         startMusicWithFocus = try values.decodeIfPresent(Bool.self, forKey: .startMusicWithFocus) ?? true

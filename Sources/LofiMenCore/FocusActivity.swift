@@ -18,8 +18,9 @@ public struct ActivityDay: Identifiable, Sendable {
     }
 }
 
-/// A rolling year of local-calendar days, laid out Sunday-first like GitHub.
+/// The last 60 local-calendar days, laid out Sunday-first like GitHub.
 public struct FocusActivity: Sendable {
+    public static let historyDays = 60
     public let weeks: [[ActivityDay]]
     public let startDate: Date
     public let endDate: Date
@@ -29,14 +30,16 @@ public struct FocusActivity: Sendable {
 
     public init(records: [SessionRecord], through now: Date, calendar: Calendar = .current) {
         let endDate = calendar.startOfDay(for: now)
-        let startDate = calendar.date(byAdding: .day, value: -364, to: endDate)!
+        let startDate = calendar.date(byAdding: .day, value: 1 - Self.historyDays, to: endDate)!
         self.endDate = endDate
         self.startDate = startDate
         let gridStart = calendar.date(byAdding: .day,
                                       value: 1 - calendar.component(.weekday, from: startDate), to: startDate)!
         let visible = records.filter { $0.finishedAt >= startDate && $0.finishedAt <= now }
         let grouped = Dictionary(grouping: visible) { calendar.startOfDay(for: $0.finishedAt) }
-        let days = (0..<371).map { offset in
+        let dayCount = calendar.dateComponents([.day], from: gridStart, to: endDate).day! + 1
+        let gridDayCount = ((dayCount + 6) / 7) * 7
+        let days = (0..<gridDayCount).map { offset in
             let date = calendar.date(byAdding: .day, value: offset, to: gridStart)!
             let sessions = grouped[date] ?? []
             return ActivityDay(date: date,

@@ -21,8 +21,8 @@ struct FocusControls: View {
                     } label: {
                         Text(mode.title).font(.room(size: 10, weight: .medium))
                             .frame(maxWidth: .infinity).frame(height: compact ? 25 : 29)
-                            .foregroundStyle(model.timer.mode == mode ? .white : .white.opacity(0.55))
-                            .background(model.timer.mode == mode ? .white.opacity(0.16) : .clear,
+                            .foregroundStyle(model.timer.mode == mode ? theme.text : theme.text.opacity(0.55))
+                            .background(model.timer.mode == mode ? theme.accent.opacity(0.2) : .clear,
                                         in: RoundedRectangle(cornerRadius: 7))
                     }.buttonStyle(.plain).accessibilityAddTraits(model.timer.mode == mode ? .isSelected : [])
                 }
@@ -44,16 +44,11 @@ struct FocusControls: View {
                             .accessibilityIdentifier("session-duration")
                     }
                 }
-                .font(.room(size: compact ? 52 : 68, weight: .light)).monospacedDigit().tracking(-2)
-                .foregroundStyle(.white).frame(height: compact ? 62 : 83)
+                .font(.room(size: compact ? 52 : 68)).monospacedDigit().tracking(-1.5)
+                .foregroundStyle(theme.text).frame(height: compact ? 62 : 83)
                 .shadow(color: .black.opacity(0.2), radius: 12, y: 3)
-                .overlay(alignment: .bottom) {
-                    if model.timer.status != .running {
-                        Capsule().fill(.white.opacity(editing ? 0.55 : 0.15)).frame(width: 156, height: 1)
-                    }
-                }
 
-                Text(caption).font(.room(size: 9)).foregroundStyle(valid || model.timer.status == .running ? .white.opacity(0.75) : theme.amber)
+                Text(caption).font(.room(size: 9)).foregroundStyle(valid || model.timer.status == .running ? theme.text.opacity(0.75) : theme.amber)
                     .frame(height: compact ? 14 : 17)
             }
 

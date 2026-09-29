@@ -28,17 +28,21 @@ Update archives and feeds are EdDSA-signed, and apps are Developer ID-signed and
 - **A compact 700 × 540 studio** with a sidebar for Studio, Activity, and Settings.
 - **A 320 × 360 menu-bar panel** with a dedicated music play/pause button, volume, and editable focus timer.
 - **Dimmed live video backgrounds** in the studio and menu-bar panel, with high-contrast controls over the stream and YouTube's title/controls cropped out. Paused or loading streams show station artwork. The same player moves between windows without restarting playback.
-- **Helvetica Neue typography** throughout the interface and countdown.
+- **Soft, rounded typography** throughout the interface and countdown, with a clean, underline-free timer.
 - **Settings inside the menu-bar panel**: use the sliders icon to edit saved focus/break lengths, cycle length, automatic breaks, music behavior, and theme.
 - **Pomodoro sessions** with customizable focus, short-break, and long-break durations. Defaults: 25 / 5 / 15 minutes, with a longer break every four completed focus sessions.
-- **Tokyo Night** by default, with **Catppuccin Mocha** available in Settings. The selection applies to the app and menu-bar panel and is saved between launches.
-- **GitHub-style focus activity**: 365 days of completed sessions, with intensity based on focused time. Hover a square for totals or click it to see that day's sessions.
+- **Candlelight** by default: warm charcoal, cream, amber, and muted sage, with **Catppuccin Mocha** available in Settings. The selection applies to the app and menu-bar panel and is saved between launches. Previous Tokyo Night preferences migrate to Candlelight.
+- **GitHub-style focus activity**: the last 60 days of completed sessions, with larger day squares and intensity based on focused time. Hover a square for totals or click it to see that day's sessions. Older session history stays saved.
 - **Exact timer entry**: type minutes (`45`) or minutes and seconds (`25:30`) directly into the countdown. Press Return or Start to apply it. Pause a running timer to edit its time.
-- Optional automatic session transitions, music when focusing, completion chimes, and macOS notifications.
+- **Launch at login** is enabled on the first normal launch and can be changed in Settings. Later launches respect your choice in macOS Login Items.
+- **Session notifications**: the app asks for macOS notification permission on its first normal launch. Choose **Allow** for focus/break completion banners; change the preference in Settings, with a shortcut to macOS notification settings if permission was denied.
+- Optional automatic session transitions, music when focusing, and completion chimes.
 
 Click play to just listen, or **Start focus** to begin a session. Closing the studio keeps the app and music in your menu bar. Use **Open studio** to bring it back, or choose **Quit Lofitime** from the panel's `…` menu.
 
 The timer uses a deadline rather than subtracting seconds, so it stays accurate when the app is hidden or the Mac sleeps. Active sessions, preferences, and completed-session history are stored locally. Music starts only when you ask it to. A skipped or reset session doesn't count toward your focus history.
+
+While listening, the player keeps background stream processing active and checks playback every five seconds. Unexpected pauses resume automatically; stalled streams reconnect after 30 seconds without progress. Pausing music yourself stops recovery and releases the background activity.
 
 A duration entered through the countdown applies to that session. Reset keeps your chosen duration; the next focus/break uses its saved default. Changing a paused duration starts it over. You can add an optional session name at the bottom of the studio. In Settings or the menu-bar settings panel, type a default duration and press Return or leave the field to save it.
 
@@ -61,7 +65,7 @@ Click the genre name to switch streams. The round music button plays/pauses the 
 
 `make test` uses a dependency-free Swift executable so it works with Command Line Tools alone, including installations without XCTest. It checks timer transitions, exact duration parsing, persistence, activity aggregation, local-day/DST boundaries, and migration of existing preferences to the new themes. Failed checks exit with a nonzero status.
 
-`make smoke` requires an internet connection and a logged-in macOS desktop session. It verifies real sidebar clicks, Activity session display and day filtering, native countdown editing and its keyboard shortcut, actual YouTube playback, video handoff between the studio and menu-bar panel, native pause, background playback, changing stations with the window closed, and reopening the studio. Navigation is checked both before and during playback. It uses isolated app settings and briefly plays at **1% volume** for background checks; WebKit intentionally suspends muted autoplay in hidden windows. The smoke-test process exits automatically.
+`make smoke` requires an internet connection and a logged-in macOS desktop session. It verifies real sidebar clicks, Activity session display and day filtering, native countdown editing and its keyboard shortcut, actual YouTube playback, video handoff between the studio and menu-bar panel, native pause, background playback, unexpected-pause recovery, changing stations with the window closed, and reopening the studio. Navigation is checked both before and during playback. It uses isolated app settings and plays at **1% volume** for background checks; WebKit intentionally suspends muted autoplay in hidden windows. Use `LOFI_BACKGROUND_SECONDS=360 make smoke` for a six-minute background-playback check. The smoke-test process exits automatically.
 
 `make preview` briefly opens native windows and captures their content, including AppKit controls, without requesting screen-recording access. It includes both themes, the menu-bar timer settings, and an explicitly labeled activity example using sample data. Sample data is only used for that preview; it is never added to your history. Diagnostic commands are available only in debug builds.
 

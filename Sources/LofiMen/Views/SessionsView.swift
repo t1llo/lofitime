@@ -16,7 +16,7 @@ struct SessionsView: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("Activity").font(.room(size: 21, weight: .medium))
                 Spacer()
-                Text("Last 365 days").font(.room(size: 11)).foregroundStyle(theme.muted)
+                Text("Last \(FocusActivity.historyDays) days").font(.room(size: 11)).foregroundStyle(theme.muted)
             }
 
             ActivityGrid(activity: model.activity, selectedDay: $selectedDay)
@@ -74,11 +74,11 @@ struct ActivityGrid: View {
             }.font(.room(size: 12)).foregroundStyle(theme.secondary)
 
             GeometryReader { geometry in
-                ScrollView(.horizontal) {
-                    calendarGrid(width: max(680, geometry.size.width))
-                        .frame(width: max(680, geometry.size.width), height: 132, alignment: .topLeading)
-                }.defaultScrollAnchor(.trailing)
-            }.frame(height: 148)
+                let width = min(geometry.size.width, 30 + CGFloat(activity.weeks.count) * 24 + CGFloat(activity.weeks.count - 1) * 5)
+                calendarGrid(width: width)
+                    .frame(width: width, height: 219, alignment: .topLeading)
+                    .frame(maxWidth: .infinity)
+            }.frame(height: 219)
 
             HStack {
                 Text("\(activity.activeDays) active \(activity.activeDays == 1 ? "day" : "days")")
@@ -94,7 +94,7 @@ struct ActivityGrid: View {
     }
 
     private func calendarGrid(width: CGFloat) -> some View {
-        let gap: CGFloat = 3
+        let gap: CGFloat = 5
         let labelWidth: CGFloat = 30
         let cell = (width - labelWidth - gap * CGFloat(activity.weeks.count - 1)) / CGFloat(activity.weeks.count)
         return ZStack(alignment: .topLeading) {
@@ -144,6 +144,9 @@ struct ActivityGrid: View {
     private func monthLabel(at index: Int) -> String? {
         let week = activity.weeks[index]
         if let first = week.first(where: { Calendar.current.component(.day, from: $0.date) == 1 && $0.isInRange }) {
+            return first.date.formatted(.dateTime.month(.abbreviated))
+        }
+        if index == 0, let first = week.first(where: \.isInRange) {
             return first.date.formatted(.dateTime.month(.abbreviated))
         }
         return nil

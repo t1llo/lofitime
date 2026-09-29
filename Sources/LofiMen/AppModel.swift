@@ -45,11 +45,13 @@ final class AppModel {
     private(set) var now = Date()
     var banner: String?
     var notificationError: String?
+    private(set) var notificationPermissionDenied = false
     let player: RadioPlayer
 
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var ticker: Timer?
     @ObservationIgnored private var wakeObserver: NSObjectProtocol?
+    @ObservationIgnored private var notificationRequest: Task<Void, Never>?
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -75,6 +77,10 @@ final class AppModel {
             Task { @MainActor in self?.tick() }
         }
         tick()
+        if !DebugTools.requested, Bundle.main.bundleURL.pathExtension == "app",
+           !defaults.bool(forKey: "notifications.configured") {
+            setNotifications(true)
+        }
     }
 
     var remainingText: String {
@@ -180,22 +186,44 @@ final class AppModel {
     }
 
     func setNotifications(_ enabled: Bool) {
+        notificationRequest?.cancel()
+        defaults.set(true, forKey: "notifications.configured")
         notificationError = nil
         guard enabled else { preferences.notifications = false; return }
         guard Bundle.main.bundleIdentifier != nil else {
             notificationError = "Open the bundled Lofitime app to enable notifications."
             return
         }
-        Task {
+        notificationRequest = Task {
             do {
                 let allowed = try await UNUserNotificationCenter.current()
                     .requestAuthorization(options: [.alert])
+                guard !Task.isCancelled else { return }
                 preferences.notifications = allowed
+                notificationPermissionDenied = !allowed
                 if !allowed { notificationError = "Allow Lofitime in System Settings → Notifications." }
             } catch {
+                guard !Task.isCancelled else { return }
                 notificationError = error.localizedDescription
             }
         }
+    }
+
+    func refreshNotificationAuthorization() async {
+        guard !DebugTools.requested, Bundle.main.bundleIdentifier != nil else { return }
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        notificationPermissionDenied = settings.authorizationStatus == .denied
+        if notificationPermissionDenied {
+            preferences.notifications = false
+            notificationError = "Allow Lofitime in System Settings → Notifications."
+        } else if settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional {
+            notificationError = nil
+        }
+    }
+
+    func openNotificationSettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") else { return }
+        NSWorkspace.shared.open(url)
     }
 
     private func notify(_ message: String) {

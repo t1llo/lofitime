@@ -56,7 +56,7 @@ struct VideoFocusScene: View {
                 }
             }.padding(compact ? 16 : 20)
         }
-        .font(.room(size: 12)).foregroundStyle(.white).tint(theme.accent)
+        .font(.room(size: 12)).foregroundStyle(theme.text).tint(theme.accent)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -82,7 +82,7 @@ struct VideoFocusScene: View {
                         }
                     } label: {
                         Text(model.player.station.title).font(.room(size: 14, weight: .medium))
-                    }.menuStyle(.borderlessButton).fixedSize().tint(.white)
+                    }.menuStyle(.borderlessButton).fixedSize().tint(theme.text)
                         .help("Choose a genre").accessibilityLabel("Genre: \(model.player.station.title)")
                 }.shadow(color: .black.opacity(0.4), radius: 5)
                 Spacer(minLength: 0)
@@ -105,16 +105,16 @@ struct VideoFocusScene: View {
                     HStack(spacing: 9) {
                         Image(systemName: model.player.isPlaying || model.player.isLoading ? "pause.fill" : "play.fill")
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.black.opacity(0.85))
+                            .foregroundStyle(theme.background)
                             .frame(width: compact ? 34 : 38, height: compact ? 34 : 38)
-                            .background(.white.opacity(0.92), in: Circle())
+                            .background(theme.text, in: Circle())
                         VStack(alignment: .leading, spacing: 4) {
                             Text(model.player.isLoading ? "Connecting…" : model.player.isPlaying ? "Pause music" : "Play music")
                                 .font(.room(size: 11, weight: .medium))
                             Text(model.player.isPlaying ? "Lofi Girl · live" : "Lofi Girl radio")
                                 .font(.room(size: 9)).foregroundStyle(.white.opacity(0.65))
                         }
-                    }.foregroundStyle(.white)
+                    }.foregroundStyle(theme.text)
                 }.buttonStyle(.plain)
                     .help(model.player.isPlaying || model.player.isLoading ? "Pause radio" : "Play radio")
                     .accessibilityLabel(model.player.isPlaying || model.player.isLoading ? "Pause radio" : "Play radio")
@@ -138,7 +138,6 @@ struct VideoFocusScene: View {
                 }
             }
         }.padding(.top, compact ? 10 : 12)
-            .overlay(alignment: .top) { Rectangle().fill(.white.opacity(0.12)).frame(height: 1) }
     }
 
     private var footer: some View {

@@ -3,14 +3,7 @@ import SwiftUI
 
 extension Font {
     static func room(size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        let face: String
-        switch weight {
-        case .light: face = "HelveticaNeue-Light"
-        case .medium: face = "HelveticaNeue-Medium"
-        case .semibold, .bold: face = "HelveticaNeue-Bold"
-        default: face = "HelveticaNeue"
-        }
-        return .custom(face, size: size)
+        .system(size: size, weight: weight, design: .rounded)
     }
 }
 
@@ -27,12 +20,12 @@ struct RoomTheme {
     let amber: Color
     let activity: Color
 
-    static let tokyoNight = RoomTheme(
-        background: Color(hex: 0x1A1B26), sidebar: Color(hex: 0x16161E), surface: Color(hex: 0x1F2335),
-        elevated: Color(hex: 0x292E42), accent: Color(hex: 0x7AA2F7),
-        text: Color(hex: 0xC0CAF5), secondary: Color(hex: 0xA9B1D6),
-        muted: Color(hex: 0x737AA2), line: Color(hex: 0x3B4261).opacity(0.55),
-        amber: Color(hex: 0xE0AF68), activity: Color(hex: 0x9ECE6A)
+    static let candlelight = RoomTheme(
+        background: Color(hex: 0x211E1B), sidebar: Color(hex: 0x191715), surface: Color(hex: 0x2A2622),
+        elevated: Color(hex: 0x36302A), accent: Color(hex: 0xDDB888),
+        text: Color(hex: 0xF3EADF), secondary: Color(hex: 0xC9BAAA),
+        muted: Color(hex: 0xA29383), line: Color(hex: 0x574B40).opacity(0.55),
+        amber: Color(hex: 0xE6B878), activity: Color(hex: 0xA8B58C)
     )
 
     static let catppuccin = RoomTheme(
@@ -49,11 +42,11 @@ struct RoomTheme {
 }
 
 extension AppAppearance {
-    var palette: RoomTheme { self == .tokyoNight ? .tokyoNight : .catppuccin }
+    var palette: RoomTheme { self == .candlelight ? .candlelight : .catppuccin }
 }
 
 private struct RoomThemeKey: EnvironmentKey {
-    static let defaultValue = RoomTheme.tokyoNight
+    static let defaultValue = RoomTheme.candlelight
 }
 
 extension EnvironmentValues {

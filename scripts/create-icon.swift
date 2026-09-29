@@ -12,17 +12,17 @@ func drawIcon(pixels: Int) -> Data {
     NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
     let rect = NSRect(x: 52, y: 52, width: 920, height: 920)
     let silhouette = NSBezierPath(roundedRect: rect, xRadius: 218, yRadius: 218)
-    NSColor(calibratedRed: 0.102, green: 0.106, blue: 0.149, alpha: 1).setFill()
+    NSColor(calibratedRed: 0.129, green: 0.118, blue: 0.106, alpha: 1).setFill()
     silhouette.fill()
-    NSGradient(starting: NSColor(calibratedRed: 0.16, green: 0.18, blue: 0.26, alpha: 1),
-               ending: NSColor(calibratedRed: 0.102, green: 0.106, blue: 0.149, alpha: 1))!
+    NSGradient(starting: NSColor(calibratedRed: 0.212, green: 0.188, blue: 0.165, alpha: 1),
+               ending: NSColor(calibratedRed: 0.129, green: 0.118, blue: 0.106, alpha: 1))!
         .draw(in: silhouette, angle: -60)
-    NSColor(calibratedRed: 0.478, green: 0.635, blue: 0.969, alpha: 0.25).setStroke()
+    NSColor(calibratedRed: 0.867, green: 0.722, blue: 0.533, alpha: 0.25).setStroke()
     let ring = NSBezierPath(ovalIn: NSRect(x: 169, y: 169, width: 686, height: 686))
     ring.lineWidth = 4
     ring.stroke()
     let heights: [CGFloat] = [145, 270, 395, 245, 135]
-    NSColor(calibratedRed: 0.478, green: 0.635, blue: 0.969, alpha: 1).setFill()
+    NSColor(calibratedRed: 0.867, green: 0.722, blue: 0.533, alpha: 1).setFill()
     for (index, height) in heights.enumerated() {
         NSBezierPath(roundedRect: NSRect(x: 308 + CGFloat(index) * 88, y: 512 - height / 2,
                                          width: 56, height: height), xRadius: 28, yRadius: 28).fill()

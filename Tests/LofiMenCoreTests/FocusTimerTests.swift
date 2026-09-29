@@ -29,7 +29,7 @@ struct FocusTimerTests {
             ("Completion boundary and repeated start are exact", exactBoundary),
             ("Typed durations accept exact seconds and reject invalid input", durationInput),
             ("Custom durations persist, reset, and complete precisely", customDuration),
-            ("Activity aggregates sessions into 53 calendar weeks", activityAggregation),
+            ("Activity aggregates sessions over the last 60 days", activityAggregation),
             ("Activity excludes old and future records", activityRange),
             ("Activity respects local days across daylight-saving changes", activityTimeZone),
             ("Existing preferences migrate and theme choice persists", preferenceMigration)
@@ -202,10 +202,10 @@ struct FocusTimerTests {
         ]
         let activity = FocusActivity(records: records, through: now, calendar: calendar)
         let days = activity.weeks.flatMap { $0 }
-        try expectEqual(activity.weeks.count, 53)
+        try expectEqual(activity.weeks.count, 10)
         try expectEqual(activity.weeks.allSatisfy { $0.count == 7 }, true)
-        try expectEqual(days.filter(\.isInRange).count, 365)
-        try expectEqual(Set(days.map(\.date)).count, 371)
+        try expectEqual(days.filter(\.isInRange).count, 60)
+        try expectEqual(Set(days.map(\.date)).count, 70)
         try expectEqual(activity.weeks.allSatisfy { calendar.component(.weekday, from: $0[0].date) == 1 }, true)
         try expectEqual(activity.totalSessions, 3)
         try expectEqual(activity.totalDuration, 3_030)
@@ -218,17 +218,24 @@ struct FocusTimerTests {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let now = ISO8601DateFormatter().date(from: "2026-09-29T12:00:00Z")!
-        let firstDay = calendar.date(byAdding: .day, value: -364, to: calendar.startOfDay(for: now))!
+        let firstDay = calendar.date(from: DateComponents(year: 2026, month: 8, day: 1))!
         let records = [firstDay.addingTimeInterval(-1), firstDay, now, now.addingTimeInterval(1)].map {
             SessionRecord(finishedAt: $0, duration: 60, intention: "Boundary")
         }
         let activity = FocusActivity(records: records, through: now, calendar: calendar)
+        try expectEqual(activity.startDate, firstDay)
         try expectEqual(activity.totalSessions, 2)
         try expectEqual(activity.totalDuration, 120)
         try expectEqual(activity.activeDays, 2)
         let empty = FocusActivity(records: [], through: now, calendar: calendar)
         try expectEqual(empty.totalSessions, 0)
         try expectEqual(empty.weeks.flatMap { $0 }.allSatisfy { $0.level == 0 }, true)
+        let leapYear = FocusActivity(records: [], through: ISO8601DateFormatter().date(from: "2024-03-31T12:00:00Z")!, calendar: calendar)
+        try expectEqual(leapYear.startDate, calendar.date(from: DateComponents(year: 2024, month: 2, day: 1))!)
+        try expectEqual(leapYear.weeks.flatMap { $0 }.filter(\.isInRange).count, 60)
+        let newYear = FocusActivity(records: [], through: ISO8601DateFormatter().date(from: "2026-01-15T12:00:00Z")!, calendar: calendar)
+        try expectEqual(newYear.startDate, calendar.date(from: DateComponents(year: 2025, month: 11, day: 17))!)
+        try expectEqual(newYear.weeks.flatMap { $0 }.filter(\.isInRange).count, 60)
     }
 
     static func activityTimeZone() throws {
@@ -254,7 +261,7 @@ struct FocusTimerTests {
          "autoStartBreaks":true,"startMusicWithFocus":false,"notifications":true}
         """.utf8)
         var preferences = try JSONDecoder().decode(Preferences.self, from: legacy)
-        try expectEqual(preferences.appearance, .tokyoNight)
+        try expectEqual(preferences.appearance, .candlelight)
         try expectEqual(preferences.timer.focusMinutes, 47)
         try expectEqual(preferences.autoStartBreaks, true)
         try expectEqual(preferences.startMusicWithFocus, false)
@@ -263,5 +270,11 @@ struct FocusTimerTests {
         let restored = try JSONDecoder().decode(Preferences.self, from: JSONEncoder().encode(preferences))
         try expectEqual(restored.appearance, .catppuccin)
         try expectEqual(restored.timer.focusMinutes, 47)
+        var previousTheme = try JSONSerialization.jsonObject(with: legacy) as! [String: Any]
+        previousTheme["appearance"] = "tokyoNight"
+        let migrated = try JSONDecoder().decode(Preferences.self, from: JSONSerialization.data(withJSONObject: previousTheme))
+        try expectEqual(migrated.appearance, .candlelight)
+        try expectEqual(migrated.timer.focusMinutes, 47)
+        try expectEqual(migrated.notifications, true)
     }
 }

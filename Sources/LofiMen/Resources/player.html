@@ -41,6 +41,10 @@
     function radioPlay() { if (player && player.playVideo) player.playVideo(); }
     function radioPause() { if (player && player.pauseVideo) player.pauseVideo(); }
     function radioVolume(value) { if (player && player.setVolume) player.setVolume(value); }
+    function radioPlaybackStatus() {
+      if (!player || !player.getPlayerState) return null;
+      return { state: player.getPlayerState(), time: player.getCurrentTime() };
+    }
   </script>
   <script src="https://www.youtube.com/iframe_api" onerror="send('error', 'network')"></script>
 </body>

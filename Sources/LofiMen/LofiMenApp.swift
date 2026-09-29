@@ -42,6 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             UNUserNotificationCenter.current().delegate = self
         }
         DebugTools.prepareLaunch()
+        LoginService.shared.start()
         UpdateService.shared.start()
     }
 

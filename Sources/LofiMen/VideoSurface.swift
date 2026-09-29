@@ -11,7 +11,9 @@ enum VideoGeometry {
 
     static func frame(in size: CGSize, fill: Bool, focalPoint: CGFloat) -> CGRect {
         let ratio: CGFloat = 16 / 9
-        let width = fill ? max(size.width, size.height * ratio) : min(size.width, size.height * ratio)
+        // Also crop the stream's baked-in track labels at the video edges; hiding
+        // YouTube's HTML title alone cannot remove text inside the live picture.
+        let width = fill ? max(size.width, size.height * ratio) * 1.3 : min(size.width, size.height * ratio)
         let height = width / ratio
         let x = fill ? min(0, max(size.width - width, size.width / 2 - width * focalPoint)) : (size.width - width) / 2
         return CGRect(x: x, y: (size.height - height) / 2, width: width, height: height)

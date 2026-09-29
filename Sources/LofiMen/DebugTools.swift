@@ -117,7 +117,7 @@ enum DebugTools {
         model.setDuration(1_530)
         model.preferences.appearance = .catppuccin
         guard model.remainingText == "25:30" else { smokeFailure("Changing themes reset the custom duration"); return }
-        model.preferences.appearance = .tokyoNight
+        model.preferences.appearance = .candlelight
         model.resetTimer()
         guard model.remainingText == "25:30" else { smokeFailure("Reset did not preserve the exact duration"); return }
         print("PASS: exact duration and theme changes preserve the timer")
@@ -213,6 +213,7 @@ enum DebugTools {
                 smokeFailure("\(station.title) selected the wrong stream"); return
             }
             print("PASS: \(station.title) plays through the official YouTube API")
+            await smokeVideoChrome(model.player)
             if station == .defaultStation {
                 model.player.volume = 0.01
                 let marker = UUID().uuidString
@@ -262,23 +263,7 @@ enum DebugTools {
             smokeFailure("YouTube chrome or hover controls can enter the menu background"); return
         }
         print("PASS: YouTube title/control margins are clipped and background hover is disabled")
-        do {
-            guard let frame = model.player.diagnosticFrame else {
-                smokeFailure("The YouTube embed frame was unavailable for the chrome check"); return
-            }
-            let cleanVideo = try await model.player.webView.callAsyncJavaScript("""
-                const video = document.querySelector('video');
-                const overlays = document.querySelectorAll('.ytp-chrome-top, .ytp-chrome-bottom, .ytp-bezel, .player-control-play-pause-icon');
-                return Boolean(video && video.getClientRects().length && video.readyState >= 2) &&
-                    [...overlays].every(node => getComputedStyle(node).display === 'none');
-                """, arguments: [:], in: frame, contentWorld: .page)
-            guard cleanVideo as? Bool == true else {
-                smokeFailure("YouTube playback UI is still visible over the video"); return
-            }
-            print("PASS: the live video stays visible while YouTube's playback overlays are hidden")
-        } catch {
-            smokeFailure("Could not verify the YouTube background: \(error)"); return
-        }
+        await smokeVideoChrome(model.player)
         if let path = ProcessInfo.processInfo.environment["LOFI_BACKGROUND_CAPTURE"],
            let surface = model.player.surfaces.activeSurface {
             do {
@@ -313,10 +298,10 @@ enum DebugTools {
         print("PASS: the same live video fills the menu-bar panel and returns to the studio without reloading")
 
         model.player.pause()
-        try? await Task.sleep(for: .milliseconds(500))
+        try? await Task.sleep(for: .seconds(6))
         let paused = try? await model.player.webView.evaluateJavaScript("player.getPlayerState()")
         guard paused as? Int == 2 else { smokeFailure("YouTube did not pause"); return }
-        print("PASS: native pause reaches the YouTube player")
+        print("PASS: native pause reaches YouTube and stays paused through a playback-monitor interval")
 
         // WebKit intentionally suspends inaudible autoplay in hidden windows.
         // Use 1% volume to exercise real background-audio behavior.
@@ -327,14 +312,41 @@ enum DebugTools {
             if model.player.isPlaying { break }
         }
         guard model.player.isPlaying else { smokeFailure("Player did not resume before closing the window"); return }
+        model.selectMode(.focus)
+        model.setDuration(600)
+        model.toggleTimer()
         NSApp.windows.first { $0.title == "Lofitime" }?.close()
-        try? await Task.sleep(for: .seconds(3))
+        let backgroundSeconds = max(3, Int(ProcessInfo.processInfo.environment["LOFI_BACKGROUND_SECONDS"] ?? "") ?? 3)
+        let initialPosition = try? await model.player.webView.evaluateJavaScript("player.getCurrentTime()") as? Double
+        let backgroundMarker = UUID().uuidString
+        _ = try? await model.player.webView.evaluateJavaScript("window.backgroundMarker = '\(backgroundMarker)'")
+        try? await Task.sleep(for: .seconds(backgroundSeconds))
         let background = try? await model.player.webView.evaluateJavaScript("player.getPlayerState()")
-        guard background as? Int == 1 else {
+        let finalPosition = try? await model.player.webView.evaluateJavaScript("player.getCurrentTime()") as? Double
+        let retainedMarker = try? await model.player.webView.evaluateJavaScript("window.backgroundMarker")
+        guard background as? Int == 1, let initialPosition, let finalPosition,
+              finalPosition - initialPosition >= Double(backgroundSeconds) * 0.8,
+              retainedMarker as? String == backgroundMarker else {
             smokeFailure("Music stopped after closing the studio (state: \(String(describing: background)))")
             return
         }
-        print("PASS: music continues with the studio window closed")
+        print("PASS: music advances for \(backgroundSeconds) seconds with every window closed, without reloading")
+
+        // Simulate the unexpected pause that WebKit/YouTube can emit in the background.
+        _ = try? await model.player.webView.evaluateJavaScript("radioPause()")
+        try? await Task.sleep(for: .seconds(1))
+        guard model.player.isPlaying || model.player.isLoading else {
+            smokeFailure("An unexpected pause discarded the listening intent"); return
+        }
+        for _ in 0..<40 {
+            try? await Task.sleep(for: .milliseconds(500))
+            if model.player.isPlaying { break }
+        }
+        let recovered = try? await model.player.webView.evaluateJavaScript("player.getPlayerState()")
+        guard recovered as? Int == 1, model.timer.status == .running else {
+            smokeFailure("The radio did not recover an unexpected background pause (player: \(String(describing: recovered)), timer: \(model.timer.status), loading: \(model.player.isLoading), error: \(model.player.error ?? "none"))"); return
+        }
+        print("PASS: an unexpected background pause recovers while the focus timer keeps running")
         model.player.pause()
         try? await Task.sleep(for: .milliseconds(500))
         model.player.play()
@@ -365,6 +377,26 @@ enum DebugTools {
         model.player.volume = originalVolume
         print("Native smoke test passed.")
         exit(0)
+    }
+
+    @MainActor private static func smokeVideoChrome(_ player: RadioPlayer) async {
+        do {
+            guard let frame = player.diagnosticFrame else {
+                smokeFailure("The YouTube embed frame was unavailable for the chrome check"); return
+            }
+            let cleanVideo = try await player.webView.callAsyncJavaScript("""
+                const video = document.querySelector('video');
+                const overlays = document.querySelectorAll('.ytp-chrome-top, .ytp-chrome-bottom, .ytp-title, .ytp-title-link, .ytp-impression-link, .ytp-watermark, .ytp-bezel, .player-control-play-pause-icon');
+                return Boolean(video && video.getClientRects().length && video.readyState >= 2) &&
+                    [...overlays].every(node => getComputedStyle(node).display === 'none');
+                """, arguments: [:], in: frame, contentWorld: .page)
+            guard cleanVideo as? Bool == true else {
+                smokeFailure("YouTube playback UI is still visible over \(player.station.title)"); return
+            }
+            print("PASS: \(player.station.title) video is visible without YouTube titles or playback overlays")
+        } catch {
+            smokeFailure("Could not verify the YouTube background: \(error)")
+        }
     }
 
     @MainActor private static func smokeNavigation(_ model: AppModel) async {
@@ -436,7 +468,7 @@ enum DebugTools {
     @MainActor private static func renderActivityExample(to url: URL) async throws {
         let now = Date()
         let calendar = Calendar.current
-        let records = (0..<365).flatMap { offset -> [SessionRecord] in
+        let records = (0..<70).flatMap { offset -> [SessionRecord] in
             let count = (offset * 7 + offset / 9) % 6
             let date = calendar.date(byAdding: .day, value: -offset, to: now)!
             return (0..<count).map { _ in SessionRecord(finishedAt: date, duration: 1_500, intention: "Example session") }
@@ -445,9 +477,9 @@ enum DebugTools {
             VStack(alignment: .leading, spacing: 20) {
                 Text("Focus activity · example data").font(.room(size: 20, weight: .medium))
                 ActivityGrid(activity: FocusActivity(records: records, through: now), selectedDay: .constant(nil))
-            }.padding(28).frame(width: 960)
-                .foregroundStyle(RoomTheme.tokyoNight.text).background(RoomTheme.tokyoNight.background)
-                .environment(\.roomTheme, .tokyoNight).preferredColorScheme(.dark), to: url)
+            }.padding(28).frame(width: 520)
+                .foregroundStyle(RoomTheme.candlelight.text).background(RoomTheme.candlelight.background)
+                .environment(\.roomTheme, .candlelight).preferredColorScheme(.dark), to: url)
     }
     #endif
 }

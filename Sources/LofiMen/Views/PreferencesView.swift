@@ -5,6 +5,7 @@ struct PreferencesView: View {
     @Environment(\.roomTheme) private var theme
     @Bindable var model: AppModel
     @ObservedObject private var updater = UpdateService.shared
+    @ObservedObject private var login = LoginService.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -39,6 +40,16 @@ struct PreferencesView: View {
 
             VStack(alignment: .leading, spacing: 18) {
                 Text("Behavior").font(.room(size: 13, weight: .medium))
+                preferenceToggle("Launch at login", value: Binding(get: { login.enabled }, set: login.setEnabled))
+                if login.status == .requiresApproval {
+                    Text("Allow Lofitime in System Settings → General → Login Items.")
+                        .font(.room(size: 11)).foregroundStyle(theme.amber)
+                    Button("Open Login Items", action: login.openSettings)
+                        .buttonStyle(.plain).foregroundStyle(theme.accent)
+                }
+                if let error = login.error {
+                    Text(error).font(.room(size: 11)).foregroundStyle(theme.amber)
+                }
                 preferenceToggle("Start music with focus", value: $model.preferences.startMusicWithFocus)
                 preferenceToggle("Automatically start breaks", value: $model.preferences.autoStartBreaks)
                 preferenceToggle("Automatically start the next focus session", value: $model.preferences.autoStartFocus)
@@ -48,6 +59,10 @@ struct PreferencesView: View {
                     get: { model.preferences.notifications }, set: { model.setNotifications($0) }))
                 if let error = model.notificationError {
                     Text(error).font(.room(size: 11)).foregroundStyle(theme.amber)
+                }
+                if model.notificationPermissionDenied {
+                    Button("Open Notification Settings", action: model.openNotificationSettings)
+                        .buttonStyle(.plain).foregroundStyle(theme.accent)
                 }
                 preferenceToggle("Show countdown in the menu bar", value: $model.preferences.showMenuBarCountdown)
             }.roomCard(padding: 16)
@@ -63,6 +78,14 @@ struct PreferencesView: View {
                     .font(.room(size: 10)).foregroundStyle(theme.muted)
             }.roomCard(padding: 16)
         }
+        .task {
+            login.refresh()
+            await model.refreshNotificationAuthorization()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            login.refresh()
+            Task { await model.refreshNotificationAuthorization() }
+        }
     }
 
     private func themeChoice(_ appearance: AppAppearance) -> some View {
@@ -77,7 +100,7 @@ struct PreferencesView: View {
                 }
                 VStack(alignment: .leading, spacing: 3) {
                     Text(appearance.title).font(.room(size: 12, weight: .medium))
-                    Text(appearance == .tokyoNight ? "Default" : "Mocha").font(.room(size: 9)).foregroundStyle(palette.muted)
+                    Text(appearance == .candlelight ? "Warm · default" : "Mocha").font(.room(size: 9)).foregroundStyle(palette.muted)
                 }
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 13)).foregroundStyle(selected ? palette.accent : palette.muted)
