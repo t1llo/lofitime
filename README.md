@@ -69,6 +69,16 @@ Tests run with Command Line Tools alone. Native smoke tests require an internet 
 
 Previews are saved to `build/previews/`. The activity example uses sample data without changing your session history.
 
+### Secret scanning
+
+GitHub Actions runs Gitleaks against the full Git history on every push and pull request. Detected secrets fail the workflow, and secret values are redacted in the logs. You can also run the workflow manually from the Actions tab.
+
+To run the same scan locally with Gitleaks installed:
+
+```sh
+gitleaks git --redact --no-banner --log-opts="--all" .
+```
+
 ## Keyboard shortcuts
 
 When Lofitime is the active app:
