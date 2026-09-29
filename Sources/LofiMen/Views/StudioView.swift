@@ -41,7 +41,7 @@ struct StudioView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
                 BrandMark(size: 24)
-                Text("lofi men").font(.room(size: 16, weight: .medium)).tracking(-0.5)
+                Text("lofitime").font(.room(size: 16, weight: .medium)).tracking(-0.5)
             }.padding(.horizontal, 4).padding(.top, 51).padding(.bottom, 34)
 
             navigationItem(.studio)
