@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en" data-interactive="false">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <style>
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+    #player { position: absolute; width: 100%; height: 100%; inset: 0; }
+    html[data-interactive="false"] #player { pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div id="player"></div>
+  <script>
+    let player;
+    function send(type, value) {
+      window.webkit.messageHandlers.radio.postMessage({ type, value, loadID: '__LOAD_ID__' });
+    }
+    window.onerror = function () { send('error', 'network'); };
+    function onYouTubeIframeAPIReady() {
+      player = new YT.Player('player', {
+        videoId: '__VIDEO_ID__',
+        width: '100%', height: '100%',
+        playerVars: {
+          autoplay: 0, playsinline: 1, controls: 0, disablekb: 1, iv_load_policy: 3, rel: 0,
+          origin: 'https://com.lofimen.app',
+          widget_referrer: 'https://com.lofimen.app'
+        },
+        events: {
+          onReady: function () {
+            player.setVolume(__VOLUME__);
+            send('ready', true);
+          },
+          onStateChange: function (event) { send('state', event.data); },
+          onError: function (event) { send('error', event.data); },
+          onAutoplayBlocked: function () { send('blocked', true); }
+        }
+      });
+    }
+    function radioPlay() { if (player && player.playVideo) player.playVideo(); }
+    function radioPause() { if (player && player.pauseVideo) player.pauseVideo(); }
+    function radioVolume(value) { if (player && player.setVolume) player.setVolume(value); }
+  </script>
+  <script src="https://www.youtube.com/iframe_api" onerror="send('error', 'network')"></script>
+</body>
+</html>

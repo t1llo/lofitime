@@ -1,0 +1,300 @@
+import AppKit
+import Observation
+import SwiftUI
+import WebKit
+
+enum RadioStation: String, CaseIterable, Identifiable {
+    case house, lofi, sleepy, synthwave
+    static let defaultStation: RadioStation = .house
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .lofi: "Study lo-fi"
+        case .synthwave: "Synthwave"
+        case .sleepy: "Sleepy lo-fi"
+        case .house: "Chill house"
+        }
+    }
+    var subtitle: String {
+        switch self {
+        case .lofi: "lofi hip hop · focus & study"
+        case .synthwave: "synthwave · chill & game"
+        case .sleepy: "soft beats · sleep & unwind"
+        case .house: "lofi house · lounge & chill"
+        }
+    }
+    var videoID: String {
+        switch self {
+        case .lofi: "rFZHOHl-L8A"
+        case .synthwave: "4xDzrJKXOOY"
+        case .sleepy: "JD-kMIpDfnY"
+        case .house: "3PFJ9SETS4M"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .lofi: "cup.and.saucer.fill"
+        case .synthwave: "sparkles"
+        case .sleepy: "moon.stars.fill"
+        case .house: "sun.horizon.fill"
+        }
+    }
+    var focalPoint: CGFloat {
+        switch self {
+        case .synthwave: 0.38
+        case .house: 0.5
+        case .lofi, .sleepy: 0.65
+        }
+    }
+}
+
+enum AppResources {
+    static var bundle: Bundle {
+        if let url = Bundle.main.resourceURL?.appendingPathComponent("LofiMen_LofiMen.bundle"),
+           let bundle = Bundle(url: url) { return bundle }
+        return .module
+    }
+
+    private static let artworks: [RadioStation: NSImage] = Dictionary(uniqueKeysWithValues:
+        RadioStation.allCases.compactMap { station in
+            guard let url = bundle.url(forResource: station.rawValue, withExtension: "jpg"),
+                  let image = NSImage(contentsOf: url) else { return nil }
+            return (station, image)
+        }
+    )
+
+    static func artwork(_ station: RadioStation) -> NSImage? { artworks[station] }
+}
+
+private final class RadioMessageHandler: NSObject, WKScriptMessageHandler {
+    weak var player: RadioPlayer?
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        #if DEBUG
+        if DebugTools.requested, (message.body as? [String: Bool])?["debugFrame"] == true,
+           message.frameInfo.securityOrigin.host == "www.youtube.com",
+           message.frameInfo.request.url?.path.hasPrefix("/embed/") == true {
+            Task { @MainActor in player?.diagnosticFrame = message.frameInfo }
+            return
+        }
+        #endif
+        Task { @MainActor in player?.receive(message.body) }
+    }
+}
+
+@MainActor @Observable
+final class RadioPlayer: NSObject, WKNavigationDelegate {
+    private(set) var station: RadioStation
+    private(set) var isPlaying = false
+    private(set) var isLoading = false
+    private(set) var hasLoaded = false
+    private(set) var isReady = false
+    private(set) var error: String?
+    var volume: Double {
+        didSet {
+            defaults.set(volume, forKey: "radio.volume")
+            evaluate("radioVolume(\(Int(volume * 100)))")
+        }
+    }
+
+    @ObservationIgnored let webView: WKWebView
+    @ObservationIgnored lazy var surfaces = VideoSurfaceRouter(webView: webView)
+    @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored private var wantsPlayback = false
+    @ObservationIgnored private var loadTimeout: Task<Void, Never>?
+    @ObservationIgnored private var previousVolume = 0.6
+    @ObservationIgnored private var loadID = ""
+    #if DEBUG
+    @ObservationIgnored var diagnosticFrame: WKFrameInfo?
+    #endif
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        station = RadioStation(rawValue: defaults.string(forKey: "radio.station") ?? "") ?? .defaultStation
+        volume = defaults.object(forKey: "radio.volume") as? Double ?? 0.6
+        let configuration = WKWebViewConfiguration()
+        configuration.mediaTypesRequiringUserActionForPlayback = []
+        configuration.allowsAirPlayForMediaPlayback = true
+        // controls=0 still allows YouTube's transient play/pause HUD and title layer.
+        // Inject into the embed frame itself; the app provides its playback controls.
+        configuration.userContentController.addUserScript(WKUserScript(source: """
+            if (location.hostname === 'www.youtube.com') {
+                const style = document.createElement('style');
+                style.textContent = `
+                    .ytp-chrome-top, .ytp-chrome-bottom,
+                    .ytp-gradient-top, .ytp-gradient-bottom,
+                    .ytp-bezel, .ytp-pause-overlay,
+                    .player-control-play-pause-icon {
+                        display: none !important;
+                    }
+                `;
+                document.documentElement.appendChild(style);
+            }
+            """, injectionTime: .atDocumentEnd, forMainFrameOnly: false))
+        let handler = RadioMessageHandler()
+        configuration.userContentController.add(handler, name: "radio")
+        #if DEBUG
+        if DebugTools.requested {
+            configuration.userContentController.addUserScript(WKUserScript(source: """
+                if (location.hostname === 'www.youtube.com') {
+                    window.webkit.messageHandlers.radio.postMessage({debugFrame: true});
+                }
+                """, injectionTime: .atDocumentEnd, forMainFrameOnly: false))
+        }
+        #endif
+        webView = WKWebView(frame: .zero, configuration: configuration)
+        super.init()
+        handler.player = self
+        webView.navigationDelegate = self
+        webView.setValue(false, forKey: "drawsBackground")
+        webView.allowsBackForwardNavigationGestures = false
+        webView.isInspectable = _isDebugAssertConfiguration()
+    }
+
+    var statusText: String {
+        if error != nil { return "Connection needs a moment" }
+        if isLoading { return "Tuning in…" }
+        return isPlaying ? "Live from Lofi Girl" : "A little calm, whenever you need it"
+    }
+
+    func toggle() {
+        if wantsPlayback { pause() } else { play() }
+    }
+
+    func play() {
+        wantsPlayback = true
+        if !hasLoaded || error != nil { load() }
+        else if isReady { evaluate("radioPlay()") }
+    }
+
+    func pause() {
+        wantsPlayback = false
+        evaluate("radioPause()")
+        isPlaying = false
+        isLoading = false
+    }
+
+    func select(_ station: RadioStation) {
+        guard self.station != station else { play(); return }
+        let resume = wantsPlayback
+        pause()
+        loadTimeout?.cancel()
+        self.station = station
+        defaults.set(station.rawValue, forKey: "radio.station")
+        hasLoaded = false
+        isReady = false
+        error = nil
+        webView.loadHTMLString("<html style='background:transparent'></html>", baseURL: nil)
+        if resume { play() }
+    }
+
+    func retry() {
+        wantsPlayback = true
+        load()
+    }
+
+    func toggleMute() {
+        if volume > 0 { previousVolume = volume; volume = 0 }
+        else { volume = previousVolume }
+    }
+
+    private func load() {
+        guard let url = AppResources.bundle.url(forResource: "player", withExtension: "html"),
+              let template = try? String(contentsOf: url, encoding: .utf8) else {
+            error = "The radio player couldn't load. Please rebuild the app."
+            return
+        }
+        error = nil
+        isLoading = true
+        isPlaying = false
+        isReady = false
+        hasLoaded = true
+        loadID = UUID().uuidString
+        let html = template.replacingOccurrences(of: "__VIDEO_ID__", with: station.videoID)
+            .replacingOccurrences(of: "__VOLUME__", with: String(Int(volume * 100)))
+            .replacingOccurrences(of: "__LOAD_ID__", with: loadID)
+        // A stable HTTPS base URL supplies the referrer required by YouTube embeds.
+        webView.loadHTMLString(html, baseURL: URL(string: "https://com.lofimen.app"))
+        loadTimeout?.cancel()
+        loadTimeout = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(25))
+            guard !Task.isCancelled, let self, self.isLoading else { return }
+            self.fail("The stream is taking a little longer. Check your connection and try again.")
+        }
+    }
+
+    fileprivate func receive(_ body: Any) {
+        guard let message = body as? [String: Any],
+              message["loadID"] as? String == loadID,
+              let type = message["type"] as? String else { return }
+        switch type {
+        case "ready":
+            isReady = true
+            evaluate("document.documentElement.dataset.interactive = '\(surfaces.isInteractive)'")
+            evaluate(wantsPlayback ? "radioPlay()" : "radioPause()")
+        case "state":
+            guard let state = message["value"] as? Int else { return }
+            if state == 1 {
+                wantsPlayback = true
+                isPlaying = true
+                isLoading = false
+                error = nil
+                loadTimeout?.cancel()
+            } else if state == 2 || state == 0 {
+                isPlaying = false
+                isLoading = false
+                wantsPlayback = false
+                loadTimeout?.cancel()
+            } else if state == 3 {
+                isLoading = wantsPlayback
+            }
+        case "blocked":
+            isLoading = false
+            wantsPlayback = false
+            error = "Press play in the video to let YouTube start the stream."
+        case "error":
+            let code = String(describing: message["value"] ?? "unknown")
+            fail(code == "100" || code == "101" || code == "150"
+                 ? "This stream is unavailable right now. Try another station."
+                 : "Couldn't connect to YouTube (\(code)). Try tuning in again.")
+        default: break
+        }
+    }
+
+    private func evaluate(_ script: String) {
+        guard isReady else { return }
+        webView.evaluateJavaScript(script, completionHandler: nil)
+    }
+
+    private func fail(_ message: String) {
+        isLoading = false
+        isPlaying = false
+        wantsPlayback = false
+        error = message
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        guard (error as NSError).code != NSURLErrorCancelled else { return }
+        fail("You're a little out of range. Check your connection and try again.")
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        guard (error as NSError).code != NSURLErrorCancelled else { return }
+        fail("The connection was interrupted. Try tuning in again.")
+    }
+
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        isReady = false
+        fail("The player needs a fresh start. Tune in again.")
+    }
+
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
+                 decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        if navigationAction.navigationType == .linkActivated,
+           let url = navigationAction.request.url, ["https", "http"].contains(url.scheme ?? "") {
+            NSWorkspace.shared.open(url)
+            decisionHandler(.cancel)
+        } else {
+            decisionHandler(.allow)
+        }
+    }
+}
