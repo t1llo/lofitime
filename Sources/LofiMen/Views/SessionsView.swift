@@ -7,8 +7,10 @@ struct SessionsView: View {
     var model: AppModel
 
     private var displayedRecords: [SessionRecord] {
-        guard let selectedDay else { return Array(model.records.prefix(15)) }
-        return model.records.filter { Calendar.current.isDate($0.finishedAt, inSameDayAs: selectedDay) }
+        if let selectedDay {
+            return model.records.filter { Calendar.current.isDate($0.finishedAt, inSameDayAs: selectedDay) }
+        }
+        return Array(model.records.prefix(15))
     }
 
     var body: some View {
@@ -19,10 +21,11 @@ struct SessionsView: View {
                 Text("Last \(FocusActivity.historyDays) days").font(.room(size: 11)).foregroundStyle(theme.muted)
             }
 
-            ActivityGrid(activity: model.activity, selectedDay: $selectedDay)
+            FocusGarden(activity: model.activity, selectedDay: $selectedDay)
 
             HStack {
-                Text(selectedDay.map { $0.formatted(.dateTime.month(.wide).day().year()) } ?? "Recent sessions")
+                Text(selectedDay.map { $0.formatted(.dateTime.month(.wide).day().year()) }
+                     ?? "Recent sessions")
                     .font(.room(size: 13, weight: .medium))
                     .accessibilityIdentifier("activity-session-heading")
                 Spacer()
@@ -33,7 +36,7 @@ struct SessionsView: View {
                 }
             }
             if displayedRecords.isEmpty {
-                Text(selectedDay == nil ? "Complete a focus session to add your first square." : "No completed sessions on this day.")
+                Text(selectedDay == nil ? "Complete a focus session to grow your first flower." : "No completed sessions on this day.")
                     .font(.room(size: 12)).foregroundStyle(theme.muted)
                     .frame(maxWidth: .infinity).padding(.vertical, 25).roomCard()
             } else {
@@ -57,102 +60,5 @@ struct SessionsView: View {
                 }.roomCard()
             }
         }
-    }
-}
-
-struct ActivityGrid: View {
-    @Environment(\.roomTheme) private var theme
-    let activity: FocusActivity
-    @Binding var selectedDay: Date?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack(spacing: 6) {
-                Text("\(activity.totalSessions) \(activity.totalSessions == 1 ? "session" : "sessions")")
-                Text("·").foregroundStyle(theme.muted)
-                Text("\(SessionDuration.summary(activity.totalDuration)) focused")
-            }.font(.room(size: 12)).foregroundStyle(theme.secondary)
-
-            GeometryReader { geometry in
-                let width = min(geometry.size.width, 30 + CGFloat(activity.weeks.count) * 24 + CGFloat(activity.weeks.count - 1) * 5)
-                calendarGrid(width: width)
-                    .frame(width: width, height: 219, alignment: .topLeading)
-                    .frame(maxWidth: .infinity)
-            }.frame(height: 219)
-
-            HStack {
-                Text("\(activity.activeDays) active \(activity.activeDays == 1 ? "day" : "days")")
-                Spacer()
-                Text("Less")
-                ForEach(0..<5) { level in
-                    RoundedRectangle(cornerRadius: 2).fill(theme.activityColor(level: level))
-                        .frame(width: 10, height: 10).accessibilityHidden(true)
-                }
-                Text("More")
-            }.font(.room(size: 10)).foregroundStyle(theme.muted)
-        }.roomCard(padding: 16)
-    }
-
-    private func calendarGrid(width: CGFloat) -> some View {
-        let gap: CGFloat = 5
-        let labelWidth: CGFloat = 30
-        let cell = (width - labelWidth - gap * CGFloat(activity.weeks.count - 1)) / CGFloat(activity.weeks.count)
-        return ZStack(alignment: .topLeading) {
-                    ForEach(activity.weeks.indices, id: \.self) { index in
-                        if let month = monthLabel(at: index) {
-                            Text(month).font(.room(size: 9)).foregroundStyle(theme.muted)
-                                .frame(width: 42, alignment: .leading)
-                                .offset(x: min(width - 42, labelWidth + CGFloat(index) * (cell + gap)))
-                        }
-                    }
-                    HStack(alignment: .top, spacing: 0) {
-                        VStack(spacing: gap) {
-                            ForEach(0..<7) { row in
-                                Text([1, 3, 5].contains(row) ? Calendar.current.shortWeekdaySymbols[row] : "")
-                                    .font(.room(size: 8)).foregroundStyle(theme.muted)
-                                    .frame(width: labelWidth, height: cell, alignment: .leading)
-                            }
-                        }
-                        HStack(alignment: .top, spacing: gap) {
-                            ForEach(activity.weeks.indices, id: \.self) { index in
-                                VStack(spacing: gap) {
-                                    ForEach(activity.weeks[index]) { day in
-                                        Button {
-                                            selectedDay = selectedDay == day.date ? nil : day.date
-                                        } label: {
-                                            RoundedRectangle(cornerRadius: 2)
-                                                .fill(theme.activityColor(level: day.level))
-                                                .overlay {
-                                                    RoundedRectangle(cornerRadius: 2)
-                                                        .strokeBorder(selectedDay == day.date ? theme.text : .clear, lineWidth: 1.5)
-                                                }
-                                                .frame(width: cell, height: cell)
-                                                .opacity(day.isInRange ? 1 : 0)
-                                        }.buttonStyle(.plain).disabled(!day.isInRange)
-                                            .help(dayDescription(day)).accessibilityLabel(dayDescription(day))
-                                             .accessibilityHidden(!day.isInRange)
-                                             .accessibilityAddTraits(selectedDay == day.date ? .isSelected : [])
-                                             .accessibilityIdentifier("activity-day-\(day.date.timeIntervalSince1970)")
-                                    }
-                                }
-                            }
-                        }
-                    }.offset(y: 21)
-        }
-    }
-
-    private func monthLabel(at index: Int) -> String? {
-        let week = activity.weeks[index]
-        if let first = week.first(where: { Calendar.current.component(.day, from: $0.date) == 1 && $0.isInRange }) {
-            return first.date.formatted(.dateTime.month(.abbreviated))
-        }
-        if index == 0, let first = week.first(where: \.isInRange) {
-            return first.date.formatted(.dateTime.month(.abbreviated))
-        }
-        return nil
-    }
-
-    private func dayDescription(_ day: ActivityDay) -> String {
-        "\(day.date.formatted(date: .complete, time: .omitted)): \(day.sessions) \(day.sessions == 1 ? "session" : "sessions"), \(SessionDuration.summary(day.duration)) focused"
     }
 }

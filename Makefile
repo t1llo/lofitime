@@ -32,6 +32,7 @@ check: test build ## Test, release-build, and verify the app bundle
 	@test -f "$(APP)/Contents/Resources/LofiMen_LofiMen.bundle/player.html" || test -f "$(APP)/Contents/Resources/LofiMen_LofiMen.bundle/Contents/Resources/player.html"
 	@test -f "$(APP)/Contents/Frameworks/Sparkle.framework/Sparkle"
 	@test -f "$(APP)/Contents/Resources/AppIcon.icns"
+	@test -f "$(APP)/Contents/Resources/LofiMen_LofiMen.bundle/Garden/flower_purpleA.obj" || test -f "$(APP)/Contents/Resources/LofiMen_LofiMen.bundle/Contents/Resources/Garden/flower_purpleA.obj"
 	@test -f "$(APP)/Contents/Resources/LofiMen_LofiMen.bundle/lofi-head.svg" || test -f "$(APP)/Contents/Resources/LofiMen_LofiMen.bundle/Contents/Resources/lofi-head.svg"
 	@test -f "$(APP)/Contents/Resources/LofiMen_LofiMen.bundle/app-icon.png" || test -f "$(APP)/Contents/Resources/LofiMen_LofiMen.bundle/Contents/Resources/app-icon.png"
 	@python3 -c 'import pathlib,re; data=pathlib.Path("$(APP)/Contents/MacOS/LofiMen").read_bytes(); assert not re.search(rb"/Users/|/home/|/private/(var|tmp)/", data), "Release binary contains local build paths"'

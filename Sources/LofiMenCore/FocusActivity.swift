@@ -7,6 +7,13 @@ public struct ActivityDay: Identifiable, Sendable {
     public let isInRange: Bool
     public var id: Date { date }
 
+    public init(date: Date, duration: TimeInterval, sessions: Int, isInRange: Bool) {
+        self.date = date
+        self.duration = duration
+        self.sessions = sessions
+        self.isInRange = isInRange
+    }
+
     public var level: Int {
         switch duration {
         case ...0: 0
@@ -18,9 +25,9 @@ public struct ActivityDay: Identifiable, Sendable {
     }
 }
 
-/// The last 80 local-calendar days, laid out Sunday-first like GitHub.
+/// The last 30 local-calendar days, arranged in Sunday-first weeks.
 public struct FocusActivity: Sendable {
-    public static let historyDays = 80
+    public static let historyDays = 30
     public let weeks: [[ActivityDay]]
     public let startDate: Date
     public let endDate: Date
@@ -33,8 +40,7 @@ public struct FocusActivity: Sendable {
         let startDate = calendar.date(byAdding: .day, value: 1 - Self.historyDays, to: endDate)!
         self.endDate = endDate
         self.startDate = startDate
-        let gridStart = calendar.date(byAdding: .day,
-                                      value: 1 - calendar.component(.weekday, from: startDate), to: startDate)!
+        let gridStart = calendar.date(byAdding: .day, value: 1 - calendar.component(.weekday, from: startDate), to: startDate)!
         let visible = records.filter { $0.finishedAt >= startDate && $0.finishedAt <= now }
         let grouped = Dictionary(grouping: visible) { calendar.startOfDay(for: $0.finishedAt) }
         let dayCount = calendar.dateComponents([.day], from: gridStart, to: endDate).day! + 1

@@ -11,7 +11,8 @@ let package = Package(
         .executableTarget(
             name: "LofiMen",
             dependencies: ["LofiMenCore", .product(name: "Sparkle", package: "Sparkle")],
-            resources: [.process("Resources")],
+            resources: ["player.html", "house.jpg", "lofi.jpg", "sleepy.jpg", "synthwave.jpg", "lofi-head.svg", "app-icon.png"]
+                .map { .process("Resources/\($0)") } + [.copy("Resources/Garden")],
             linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]
         ),
         // A small executable test runner also works with Command Line Tools-only installs.

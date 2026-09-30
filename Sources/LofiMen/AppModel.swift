@@ -9,7 +9,7 @@ enum StudioSection: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .studio: "headphones"
-        case .sessions: "square.grid.3x3"
+        case .sessions: "leaf"
         case .settings: "gearshape"
         }
     }

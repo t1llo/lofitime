@@ -1,6 +1,7 @@
 import AppKit
 import LofiMenCore
 import SwiftUI
+import SceneKit
 import WebKit
 
 /// Opt-in diagnostics are compiled only into debug builds. They use isolated timer storage.
@@ -106,6 +107,22 @@ enum DebugTools {
             throw NSError(domain: "LofiMen.Preview", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not render native view"])
         }
         hosting.cacheDisplay(in: hosting.bounds, to: bitmap)
+        // Metal-backed SceneKit views need their renderer's snapshot; AppKit's
+        // bitmap cache does not capture the GPU surface.
+        func captureScenes(in view: NSView) {
+            if let sceneView = view as? SCNView {
+                let frame = hosting.convert(sceneView.bounds, from: sceneView)
+                let rect = NSRect(x: frame.minX, y: hosting.isFlipped ? hosting.bounds.height - frame.maxY : frame.minY,
+                                  width: frame.width, height: frame.height)
+                NSGraphicsContext.saveGraphicsState()
+                NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
+                NSBezierPath(roundedRect: rect, xRadius: 16, yRadius: 16).addClip()
+                sceneView.snapshot().draw(in: rect)
+                NSGraphicsContext.restoreGraphicsState()
+            }
+            view.subviews.forEach { captureScenes(in: $0) }
+        }
+        captureScenes(in: hosting)
         guard let data = bitmap.representation(using: .png, properties: [:]) else {
             throw NSError(domain: "LofiMen.Preview", code: 2)
         }
@@ -155,7 +172,44 @@ enum DebugTools {
             smokeFailure("A completed exact-duration session did not update activity")
             return
         }
-        print("PASS: completing a one-second session updates the activity grid")
+        guard model.activity.weeks.flatMap({ $0 }).first(where: { $0.date == model.activity.endDate })?.flowers == 1 else {
+            smokeFailure("A short focus session did not grow the first flower"); return
+        }
+        for name in ["flower_purpleA", "flower_purpleB", "flower_redA", "flower_yellowA", "grass", "plant_bushDetailed", "tree_oak", "tree_pineRoundA", "mushroom_red", "rock_smallA"] {
+            let modelNode = GardenBuilder.model(name, height: 1)
+            guard !modelNode.childNodes.isEmpty, modelNode.boundingBox.max.y > modelNode.boundingBox.min.y else {
+                smokeFailure("Bundled garden model did not load: \(name)"); return
+            }
+        }
+        print("PASS: a completed focus session grows a flower; bundled CC0 garden meshes load correctly")
+        let forest = FocusActivity(records: [SessionRecord(finishedAt: model.activity.endDate, duration: 18_000, intention: "Forest diagnostic")], through: Date())
+        let forestScene = GardenBuilder.scene(weeks: forest.gardenWeeks)
+        guard forestScene.rootNode.childNodes.filter({ $0.name?.hasPrefix("day-") == true }).count == 30,
+              let tree = forestScene.rootNode.childNode(withName: "forest-tree", recursively: true),
+              let fox = forestScene.rootNode.childNode(withName: "forest-fox", recursively: true),
+              let bee = forestScene.rootNode.childNode(withName: "forest-bee", recursively: true),
+              tree.boundingBox.max.y * tree.scale.y > 1.4,
+              let sound = ForestAmbience.makeSound(), abs(sound.duration - 12) < 0.1 else {
+            smokeFailure("Daily forest tiles, tall trees, wildlife, or synthesized audio did not load"); return
+        }
+        if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            guard fox.hasActions, bee.hasActions else {
+                smokeFailure("Forest wildlife was not animated"); return
+            }
+        }
+        let map = GardenSceneView.GardenView(frame: NSRect(x: 0, y: 0, width: 436, height: 260))
+        map.scene = forestScene
+        map.pointOfView = forestScene.rootNode.childNode(withName: "camera", recursively: false)
+        map.weekCount = forest.weeks.count
+        map.fitCamera()
+        let fitted = map.pointOfView?.camera?.orthographicScale ?? 0
+        map.zoom = 3
+        map.fitCamera()
+        guard fitted > 0, abs((map.pointOfView?.camera?.orthographicScale ?? 0) * 3 - fitted) < 0.01 else {
+            smokeFailure("Forest camera did not fit or zoom correctly"); return
+        }
+        map.scene = nil
+        print("PASS: 30 forest tiles fit the panel; tall trees, animated foxes/bees, 3× zoom, and 12-second forest audio load")
 
         model.selectMode(.focus)
         model.banner = nil
@@ -512,9 +566,19 @@ enum DebugTools {
               accessibilityElement("session-record-\(record.id)", in: window) != nil else {
             smokeFailure("Activity did not display the completed focus session"); return
         }
+        func scrollViews(in view: NSView) -> [NSScrollView] {
+            (view as? NSScrollView).map { [$0] } ?? view.subviews.flatMap { scrollViews(in: $0) }
+        }
+        if let content = window.contentView,
+           let scroll = scrollViews(in: content).first(where: { $0.bounds.width > 300 }),
+           let document = scroll.documentView {
+            scroll.contentView.scroll(to: NSPoint(x: 0, y: min(220, max(0, document.bounds.height - scroll.contentView.bounds.height))))
+            scroll.reflectScrolledClipView(scroll.contentView)
+            try? await Task.sleep(for: .milliseconds(300))
+        }
         guard await click("activity-day-\(model.activity.endDate.timeIntervalSince1970)", in: window),
               accessibilityElement("activity-show-all", in: window) != nil else {
-            smokeFailure("Clicking today's activity square did not filter the sessions"); return
+            smokeFailure("Clicking today's garden day did not filter the sessions"); return
         }
         guard await click("activity-show-all", in: window),
               accessibilityElement("activity-show-all", in: window) == nil else {
@@ -574,7 +638,7 @@ enum DebugTools {
         try await render(
             VStack(alignment: .leading, spacing: 20) {
                 Text("Focus activity · example data").font(.room(size: 20, weight: .medium))
-                ActivityGrid(activity: FocusActivity(records: records, through: now), selectedDay: .constant(nil))
+                FocusGarden(activity: FocusActivity(records: records, through: now), selectedDay: .constant(nil))
             }.padding(28).frame(width: 520)
                 .foregroundStyle(RoomTheme.candlelight.text).background(RoomTheme.candlelight.background)
                 .environment(\.roomTheme, .candlelight).preferredColorScheme(.dark), to: url)
