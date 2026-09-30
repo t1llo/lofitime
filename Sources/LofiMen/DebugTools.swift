@@ -116,7 +116,7 @@ enum DebugTools {
         let labelSizes = ["00:00", "01:11", "09:59", "10:00", "59:59", "180:00"].flatMap { text in
             [false, true].map { MenuBarLabel.image(countdown: text, paused: $0).size }
         }
-        guard MenuBarLabel.activeSize.width < 75,
+        guard MenuBarLabel.activeSize.width < 65,
               labelSizes.allSatisfy({ $0 == MenuBarLabel.activeSize }) else {
             smokeFailure("Menu-bar countdown width changes with digits or pause state"); return
         }
