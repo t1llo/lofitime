@@ -184,7 +184,7 @@ enum DebugTools {
         print("PASS: a completed focus session grows a flower; bundled CC0 garden meshes load correctly")
         let forest = FocusActivity(records: [SessionRecord(finishedAt: model.activity.endDate, duration: 18_000, intention: "Forest diagnostic")], through: Date())
         let forestScene = GardenBuilder.scene(weeks: forest.gardenWeeks)
-        guard forestScene.rootNode.childNodes.filter({ $0.name?.hasPrefix("day-") == true }).count == 30,
+        guard forestScene.rootNode.childNodes.filter({ $0.name?.hasPrefix("day-") == true || $0.name == "future-day" }).count == 35,
               let tree = forestScene.rootNode.childNode(withName: "forest-tree", recursively: true),
               let fox = forestScene.rootNode.childNode(withName: "forest-fox", recursively: true),
               let bee = forestScene.rootNode.childNode(withName: "forest-bee", recursively: true),
@@ -209,7 +209,7 @@ enum DebugTools {
             smokeFailure("Forest camera did not fit or zoom correctly"); return
         }
         map.scene = nil
-        print("PASS: 30 forest tiles fit the panel; tall trees, animated foxes/bees, 3× zoom, and 12-second forest audio load")
+        print("PASS: five full weeks fit the panel; tall trees, animated foxes/bees, 3× zoom, and 12-second forest audio load")
 
         model.selectMode(.focus)
         model.banner = nil

@@ -38,7 +38,7 @@ struct FocusGarden: View {
             }
             .frame(height: 260)
             .clipShape(RoundedRectangle(cornerRadius: 16))
-            .accessibilityLabel("Daily garden squares for the last 30 days. Scroll to zoom and drag to pan.")
+            .accessibilityLabel("Five full weeks of daily forest squares. Scroll to zoom and drag to pan.")
 
             HStack {
                 Text("\(activity.activeDays) active days")
@@ -315,7 +315,7 @@ struct GardenSceneView: NSViewRepresentable {
         }
 
         for week in weeks {
-          for (row, day) in week.days.enumerated() where day.isInRange {
+          for (row, day) in week.days.enumerated() {
             let flowers = day.flowers
             let bushes = day.bushes
             let trees = day.trees
@@ -323,11 +323,12 @@ struct GardenSceneView: NSViewRepresentable {
             let hasFox = day.hasFox
             let seed = week.index * 7 + row
             let patch = SCNNode()
-            patch.name = "day-\(day.date.timeIntervalSince1970)"
+            patch.name = day.isInRange ? "day-\(day.date.timeIntervalSince1970)" : "future-day"
             patch.position = SCNVector3(Float(row - 3) * 1.06, 0, (Float(week.index) - centerRow) * 1.06)
             root.addChildNode(patch)
             let turf = SCNBox(width: 0.94, height: 0.015, length: 0.94, chamferRadius: 0.025)
             let planting = node(turf, color: tileColor(level: day.level, theme: theme))
+            planting.opacity = day.isInRange ? 1 : 0.45
             patch.addChildNode(planting)
             let ring = SCNNode()
             for side: CGFloat in [-1, 1] {

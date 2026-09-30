@@ -18,7 +18,7 @@ struct SessionsView: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("Activity").font(.room(size: 21, weight: .medium))
                 Spacer()
-                Text("Last \(FocusActivity.historyDays) days").font(.room(size: 11)).foregroundStyle(theme.muted)
+                Text("Last \(FocusActivity.historyWeeks) weeks").font(.room(size: 11)).foregroundStyle(theme.muted)
             }
 
             FocusGarden(activity: model.activity, selectedDay: $selectedDay)

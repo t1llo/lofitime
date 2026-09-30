@@ -25,9 +25,10 @@ public struct ActivityDay: Identifiable, Sendable {
     }
 }
 
-/// The last 30 local-calendar days, arranged in Sunday-first weeks.
+/// Five complete Sunday-first rows, including the current calendar week.
 public struct FocusActivity: Sendable {
-    public static let historyDays = 30
+    public static let historyWeeks = 5
+    public static let historyDays = historyWeeks * 7
     public let weeks: [[ActivityDay]]
     public let startDate: Date
     public let endDate: Date
@@ -37,14 +38,14 @@ public struct FocusActivity: Sendable {
 
     public init(records: [SessionRecord], through now: Date, calendar: Calendar = .current) {
         let endDate = calendar.startOfDay(for: now)
-        let startDate = calendar.date(byAdding: .day, value: 1 - Self.historyDays, to: endDate)!
+        let currentWeekStart = calendar.date(byAdding: .day, value: 1 - calendar.component(.weekday, from: endDate), to: endDate)!
+        let startDate = calendar.date(byAdding: .day, value: -(Self.historyWeeks - 1) * 7, to: currentWeekStart)!
         self.endDate = endDate
         self.startDate = startDate
         let gridStart = calendar.date(byAdding: .day, value: 1 - calendar.component(.weekday, from: startDate), to: startDate)!
         let visible = records.filter { $0.finishedAt >= startDate && $0.finishedAt <= now }
         let grouped = Dictionary(grouping: visible) { calendar.startOfDay(for: $0.finishedAt) }
-        let dayCount = calendar.dateComponents([.day], from: gridStart, to: endDate).day! + 1
-        let gridDayCount = ((dayCount + 6) / 7) * 7
+        let gridDayCount = Self.historyDays
         let days = (0..<gridDayCount).map { offset in
             let date = calendar.date(byAdding: .day, value: offset, to: gridStart)!
             let sessions = grouped[date] ?? []
