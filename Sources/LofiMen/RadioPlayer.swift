@@ -145,12 +145,17 @@ final class RadioPlayer: NSObject, WKNavigationDelegate {
             if (location.hostname === 'www.youtube.com' && location.pathname.startsWith('/embed/')) {
                 const style = document.createElement('style');
                 style.textContent = `
+                    video { object-fit: contain !important; }
                     html:not([data-lofi-interactive="true"]) :is(
                         .ytp-chrome-top, .ytp-chrome-bottom,
                         .ytp-title, .ytp-title-link, .ytp-title-text,
                         .ytp-impression-link, .ytp-watermark,
                         .ytp-gradient-top, .ytp-gradient-bottom,
                         .ytp-bezel, .ytp-pause-overlay, .ytp-settings-menu,
+                        .player-controls-top, .player-controls-bottom, .player-controls-middle,
+                        .ytmVideoInfoRendererHost, .ytmProgressBarHost,
+                        .ytPlayerProgressBarHost,
+                        .ytm-progress-bar, .player-controls-progress-bar,
                         .player-control-play-pause-icon) {
                         display: none !important;
                         visibility: hidden !important;

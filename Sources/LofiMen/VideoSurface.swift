@@ -7,8 +7,6 @@ enum VideoPresentation: Int {
 }
 
 enum VideoGeometry {
-    static let chromeInset: CGFloat = 96
-
     static func frame(in size: CGSize, fill: Bool, focalPoint: CGFloat, presentation: VideoPresentation = .studio) -> CGRect {
         let ratio: CGFloat = 16 / 9
         // Also crop the stream's baked-in track labels at the video edges; hiding
@@ -17,14 +15,14 @@ enum VideoGeometry {
         let width = fill ? max(size.width, size.height * ratio) * zoom : min(size.width, size.height * ratio)
         let height = width / ratio
         let x = fill ? min(0, max(size.width - width, size.width / 2 - width * focalPoint)) : (size.width - width) / 2
-        return CGRect(x: x, y: (size.height - height) / 2, width: width, height: height)
+        let verticalPosition: CGFloat = fill && presentation == .menuBar ? 0.65 : 0.5
+        return CGRect(x: x, y: (size.height - height) * verticalPosition, width: width, height: height)
     }
 
     static func playerFrame(in size: CGSize, fill: Bool, focalPoint: CGFloat, presentation: VideoPresentation = .studio) -> CGRect {
-        let video = frame(in: size, fill: fill, focalPoint: focalPoint, presentation: presentation)
-        // YouTube letterboxes the 16:9 video inside this taller player. Its title and
-        // transport controls land in the clipped margins, preserving the video framing.
-        return fill ? video.insetBy(dx: 0, dy: -chromeInset) : video
+        // Keep the iframe itself at 16:9. Adding control gutters changes its aspect
+        // ratio and can distort YouTube's compact player; the host crops the edges.
+        frame(in: size, fill: fill, focalPoint: focalPoint, presentation: presentation)
     }
 }
 
@@ -75,6 +73,7 @@ final class VideoSurfaceRouter {
 
 @MainActor
 final class VideoSurfaceView: NSView {
+    override var isFlipped: Bool { true }
     let presentation: VideoPresentation
     weak var router: VideoSurfaceRouter?
     var fillsBounds = true
@@ -87,6 +86,10 @@ final class VideoSurfaceView: NSView {
         super.init(frame: .zero)
         wantsLayer = true
         layer?.masksToBounds = true
+        if presentation == .menuBar {
+            layer?.cornerRadius = MenuBarView.cornerRadius
+            layer?.cornerCurve = .continuous
+        }
         router.register(self)
     }
 

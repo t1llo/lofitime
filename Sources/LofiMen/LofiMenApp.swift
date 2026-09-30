@@ -32,18 +32,23 @@ struct LofiMenApp: App {
 }
 
 enum MenuBarLabel {
+    static let font = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
+    static let countdownWidth = ceil(("00:00" as NSString).size(withAttributes: [.font: font]).width) + 2
+    static let activeSize = NSSize(width: 22 + countdownWidth + 10, height: 18)
+
     static func image(countdown: String?, paused: Bool) -> NSImage {
-        let size = NSSize(width: countdown == nil ? 18 : 98, height: 18)
+        let size = countdown == nil ? NSSize(width: 18, height: 18) : activeSize
         let image = NSImage(size: size, flipped: false) { bounds in
             AppResources.menuBarIcon.draw(in: NSRect(x: 0, y: 0, width: 18, height: 18))
             if let countdown {
-                let font = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
-                let text = NSAttributedString(string: countdown, attributes: [.font: font, .foregroundColor: NSColor.black])
-                text.draw(at: NSPoint(x: 24, y: (bounds.height - text.size().height) / 2))
+                let naturalWidth = (countdown as NSString).size(withAttributes: [.font: font]).width
+                let fittedFont = NSFont.monospacedDigitSystemFont(ofSize: 13 * min(1, countdownWidth / max(1, naturalWidth)), weight: .regular)
+                let text = NSAttributedString(string: countdown, attributes: [.font: fittedFont, .foregroundColor: NSColor.black])
+                text.draw(at: NSPoint(x: 22, y: (bounds.height - text.size().height) / 2))
                 if paused {
                     NSColor.black.setFill()
-                    NSRect(x: 86, y: 4, width: 2, height: 10).fill()
-                    NSRect(x: 91, y: 4, width: 2, height: 10).fill()
+                    NSRect(x: 24 + countdownWidth, y: 5, width: 2, height: 8).fill()
+                    NSRect(x: 28 + countdownWidth, y: 5, width: 2, height: 8).fill()
                 }
             }
             return true

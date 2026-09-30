@@ -116,12 +116,15 @@ enum DebugTools {
         let labelSizes = ["00:00", "01:11", "09:59", "10:00", "59:59", "180:00"].flatMap { text in
             [false, true].map { MenuBarLabel.image(countdown: text, paused: $0).size }
         }
-        guard labelSizes.allSatisfy({ $0 == NSSize(width: 98, height: 18) }) else {
+        guard MenuBarLabel.activeSize.width < 75,
+              labelSizes.allSatisfy({ $0 == MenuBarLabel.activeSize }) else {
             smokeFailure("Menu-bar countdown width changes with digits or pause state"); return
         }
         let studioVideo = VideoGeometry.frame(in: MenuBarView.size, fill: true, focalPoint: 0.5)
         let menuVideo = VideoGeometry.frame(in: MenuBarView.size, fill: true, focalPoint: 0.5, presentation: .menuBar)
-        guard menuVideo.height > studioVideo.height, menuVideo.minY < 0, menuVideo.maxY > MenuBarView.size.height else {
+        guard menuVideo.height > studioVideo.height,
+              menuVideo.minY < (MenuBarView.size.height - menuVideo.height) / 2,
+              menuVideo.maxY > MenuBarView.size.height else {
             smokeFailure("Menu-bar video does not overscan the panel edges"); return
         }
         print("PASS: menu-bar countdown has fixed width across digits and pause states; preview overscans its edges")
@@ -271,12 +274,13 @@ enum DebugTools {
         let frame = model.player.webView.frame
         let pointerEvents = try? await model.player.webView.evaluateJavaScript("getComputedStyle(document.getElementById('player')).pointerEvents")
         let controls = try? await model.player.webView.evaluateJavaScript("new URL(player.getIframe().src).searchParams.get('controls')")
-        guard frame.minY <= -VideoGeometry.chromeInset,
-              frame.maxY >= MenuBarView.size.height + VideoGeometry.chromeInset,
+        guard frame.minY < 0,
+              frame.maxY > MenuBarView.size.height,
+              abs(frame.width / frame.height - 16 / 9) < 0.001,
                pointerEvents as? String == "none", controls as? String == "1" else {
             smokeFailure("YouTube chrome or hover controls can enter the menu background"); return
         }
-        print("PASS: YouTube title/control margins are clipped and background hover is disabled")
+        print("PASS: YouTube player stays 16:9, edges are cropped, and background hover is disabled")
         await smokeVideoChrome(model.player)
         if let path = ProcessInfo.processInfo.environment["LOFI_BACKGROUND_CAPTURE"],
            let surface = model.player.surfaces.activeSurface {
@@ -400,8 +404,9 @@ enum DebugTools {
             }
             let cleanVideo = try await player.webView.callAsyncJavaScript("""
                 const video = document.querySelector('video');
-                const overlays = document.querySelectorAll('.ytp-chrome-top, .ytp-chrome-bottom, .ytp-title, .ytp-title-link, .ytp-impression-link, .ytp-watermark, .ytp-bezel, .player-control-play-pause-icon');
+                const overlays = document.querySelectorAll('.ytp-chrome-top, .ytp-chrome-bottom, .ytp-title, .ytp-title-link, .ytp-impression-link, .ytp-watermark, .ytp-bezel, .player-control-play-pause-icon, .ytPlayerProgressBarHost');
                 return Boolean(video && video.getClientRects().length && video.readyState >= 2) &&
+                    getComputedStyle(video).objectFit === 'contain' &&
                     [...overlays].every(node => getComputedStyle(node).display === 'none');
                 """, arguments: [:], in: frame, contentWorld: .page)
             guard cleanVideo as? Bool == true else {
