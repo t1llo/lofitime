@@ -1,5 +1,7 @@
 import AppKit
 
+let source = URL(fileURLWithPath: CommandLine.arguments.count > 2 ? CommandLine.arguments[2] : "assets/icon.png")
+guard let image = NSImage(contentsOf: source) else { fatalError("Cannot load app icon: \(source.path)") }
 let output = URL(fileURLWithPath: CommandLine.arguments[1]).appendingPathComponent("AppIcon.iconset")
 try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
 
@@ -10,23 +12,9 @@ func drawIcon(pixels: Int) -> Data {
     rep.size = NSSize(width: 1024, height: 1024)
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
-    let rect = NSRect(x: 52, y: 52, width: 920, height: 920)
-    let silhouette = NSBezierPath(roundedRect: rect, xRadius: 218, yRadius: 218)
-    NSColor(calibratedRed: 0.129, green: 0.118, blue: 0.106, alpha: 1).setFill()
-    silhouette.fill()
-    NSGradient(starting: NSColor(calibratedRed: 0.212, green: 0.188, blue: 0.165, alpha: 1),
-               ending: NSColor(calibratedRed: 0.129, green: 0.118, blue: 0.106, alpha: 1))!
-        .draw(in: silhouette, angle: -60)
-    NSColor(calibratedRed: 0.867, green: 0.722, blue: 0.533, alpha: 0.25).setStroke()
-    let ring = NSBezierPath(ovalIn: NSRect(x: 169, y: 169, width: 686, height: 686))
-    ring.lineWidth = 4
-    ring.stroke()
-    let heights: [CGFloat] = [145, 270, 395, 245, 135]
-    NSColor(calibratedRed: 0.867, green: 0.722, blue: 0.533, alpha: 1).setFill()
-    for (index, height) in heights.enumerated() {
-        NSBezierPath(roundedRect: NSRect(x: 308 + CGFloat(index) * 88, y: 512 - height / 2,
-                                         width: 56, height: height), xRadius: 28, yRadius: 28).fill()
-    }
+    NSGraphicsContext.current?.imageInterpolation = .high
+    image.draw(in: NSRect(x: 0, y: 0, width: 1024, height: 1024),
+               from: .zero, operation: .copy, fraction: 1)
     NSGraphicsContext.restoreGraphicsState()
     return rep.representation(using: .png, properties: [:])!
 }

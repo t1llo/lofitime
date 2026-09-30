@@ -1,5 +1,7 @@
 # Lofitime
 
+<img src="assets/icon.png" alt="Lofitime app icon" width="128">
+
 **A little music. A little more focus.** A native macOS menu-bar app for lo-fi radio and Pomodoro timers, built with SwiftUI.
 
 [Website](https://lofi.beffa.xyz) · [Download for Mac](https://github.com/t1llo/lofitime/releases/latest) · [Releases](https://github.com/t1llo/lofitime/releases)

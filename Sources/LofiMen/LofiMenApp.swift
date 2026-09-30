@@ -22,7 +22,8 @@ struct LofiMenApp: App {
         MenuBarExtra {
             MenuBarView(model: model)
         } label: {
-            Image(systemName: "waveform")
+            Image(nsImage: AppResources.menuBarIcon)
+                .accessibilityLabel("Lofitime")
             if model.preferences.showMenuBarCountdown && model.timer.status != .ready {
                 Text(model.remainingText).font(.room(size: 13)).monospacedDigit()
                 if model.timer.status == .paused { Image(systemName: "pause.fill") }

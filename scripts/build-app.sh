@@ -10,6 +10,7 @@ if [[ "$CONFIGURATION" != "release" && "$CONFIGURATION" != "debug" ]]; then
 fi
 
 args=(--configuration "$CONFIGURATION" --product LofiMen --disable-keychain)
+cp assets/lofi-head.svg Sources/LofiMen/Resources/lofi-head.svg
 if [[ "${LOFITIME_UNIVERSAL:-0}" == 1 ]]; then args+=(--arch arm64 --arch x86_64); fi
 swift build "${args[@]}"
 BIN_DIR="$(swift build "${args[@]}" --show-bin-path)"
@@ -25,8 +26,8 @@ mkdir -p "$STAGING/Contents/Frameworks"
 ditto "$SPARKLE/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework" "$STAGING/Contents/Frameworks/Sparkle.framework"
 cp "$SPARKLE/LICENSE" "$STAGING/Contents/Resources/Sparkle-LICENSE.txt"
 
-if [[ ! -f "$ROOT/build/AppIcon.icns" || scripts/create-icon.swift -nt "$ROOT/build/AppIcon.icns" ]]; then
-    swift scripts/create-icon.swift "$ROOT/build"
+if [[ ! -f "$ROOT/build/AppIcon.icns" || scripts/create-icon.swift -nt "$ROOT/build/AppIcon.icns" || assets/icon.png -nt "$ROOT/build/AppIcon.icns" ]]; then
+    swift scripts/create-icon.swift "$ROOT/build" "$ROOT/assets/icon.png"
     iconutil -c icns "$ROOT/build/AppIcon.iconset" -o "$ROOT/build/AppIcon.icns"
 fi
 cp "$ROOT/build/AppIcon.icns" "$STAGING/Contents/Resources/AppIcon.icns"

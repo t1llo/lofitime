@@ -49,6 +49,14 @@ enum RadioStation: String, CaseIterable, Identifiable {
 }
 
 enum AppResources {
+    static let menuBarIcon: NSImage = {
+        guard let url = bundle.url(forResource: "lofi-head", withExtension: "svg"),
+              let image = NSImage(contentsOf: url) else { fatalError("Missing menu-bar icon") }
+        image.size = NSSize(width: 18, height: 18)
+        image.isTemplate = true
+        return image
+    }()
+
     static var bundle: Bundle {
         let locations = [Bundle.main.resourceURL, Bundle.main.bundleURL,
                          Bundle.main.executableURL?.deletingLastPathComponent()]
