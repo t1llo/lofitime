@@ -22,14 +22,34 @@ struct LofiMenApp: App {
         MenuBarExtra {
             MenuBarView(model: model)
         } label: {
-            Image(nsImage: AppResources.menuBarIcon)
-                .accessibilityLabel("Lofitime")
-            if model.preferences.showMenuBarCountdown && model.timer.status != .ready {
-                Text(model.remainingText).font(.room(size: 13)).monospacedDigit()
-                if model.timer.status == .paused { Image(systemName: "pause.fill") }
-            }
+            Image(nsImage: MenuBarLabel.image(
+                countdown: model.preferences.showMenuBarCountdown && model.timer.status != .ready ? model.remainingText : nil,
+                paused: model.timer.status == .paused))
+                .accessibilityLabel("Lofitime" + (model.timer.status == .ready ? "" : ": \(model.remainingText)"))
         }
         .menuBarExtraStyle(.window)
+    }
+}
+
+enum MenuBarLabel {
+    static func image(countdown: String?, paused: Bool) -> NSImage {
+        let size = NSSize(width: countdown == nil ? 18 : 98, height: 18)
+        let image = NSImage(size: size, flipped: false) { bounds in
+            AppResources.menuBarIcon.draw(in: NSRect(x: 0, y: 0, width: 18, height: 18))
+            if let countdown {
+                let font = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
+                let text = NSAttributedString(string: countdown, attributes: [.font: font, .foregroundColor: NSColor.black])
+                text.draw(at: NSPoint(x: 24, y: (bounds.height - text.size().height) / 2))
+                if paused {
+                    NSColor.black.setFill()
+                    NSRect(x: 86, y: 4, width: 2, height: 10).fill()
+                    NSRect(x: 91, y: 4, width: 2, height: 10).fill()
+                }
+            }
+            return true
+        }
+        image.isTemplate = true
+        return image
     }
 }
 

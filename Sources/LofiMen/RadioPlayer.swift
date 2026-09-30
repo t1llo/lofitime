@@ -49,6 +49,12 @@ enum RadioStation: String, CaseIterable, Identifiable {
 }
 
 enum AppResources {
+    static let appIcon: NSImage = {
+        guard let url = bundle.url(forResource: "app-icon", withExtension: "png"),
+              let image = NSImage(contentsOf: url) else { fatalError("Missing app icon") }
+        return image
+    }()
+
     static let menuBarIcon: NSImage = {
         guard let url = bundle.url(forResource: "lofi-head", withExtension: "svg"),
               let image = NSImage(contentsOf: url) else { fatalError("Missing menu-bar icon") }
@@ -133,23 +139,33 @@ final class RadioPlayer: NSObject, WKNavigationDelegate {
         let configuration = WKWebViewConfiguration()
         configuration.mediaTypesRequiringUserActionForPlayback = []
         configuration.allowsAirPlayForMediaPlayback = true
-        // controls=0 still allows YouTube's transient play/pause HUD and title layer.
-        // Install before the embed's first paint, including its separate title and
-        // "Watch on YouTube" layers. Native controls handle playback in both views.
+        // Keep overlays hidden in backgrounds; reveal YouTube's real controls only
+        // in the interactive player so its supported quality menu remains available.
         configuration.userContentController.addUserScript(WKUserScript(source: """
             if (location.hostname === 'www.youtube.com' && location.pathname.startsWith('/embed/')) {
                 const style = document.createElement('style');
                 style.textContent = `
-                    .ytp-chrome-top, .ytp-chrome-bottom,
-                    .ytp-title, .ytp-title-link, .ytp-title-text,
-                    .ytp-impression-link, .ytp-watermark,
-                    .ytp-gradient-top, .ytp-gradient-bottom,
-                    .ytp-bezel, .ytp-pause-overlay,
-                    .player-control-play-pause-icon {
+                    html:not([data-lofi-interactive="true"]) :is(
+                        .ytp-chrome-top, .ytp-chrome-bottom,
+                        .ytp-title, .ytp-title-link, .ytp-title-text,
+                        .ytp-impression-link, .ytp-watermark,
+                        .ytp-gradient-top, .ytp-gradient-bottom,
+                        .ytp-bezel, .ytp-pause-overlay, .ytp-settings-menu,
+                        .player-control-play-pause-icon) {
                         display: none !important;
                         visibility: hidden !important;
                     }
                 `;
+                window.addEventListener('message', event => {
+                    if (event.source !== window.parent || event.origin !== 'https://com.lofimen.app') return;
+                    if (typeof event.data?.lofiInteractive !== 'boolean') return;
+                    document.documentElement.dataset.lofiInteractive = String(event.data.lofiInteractive);
+                    if (!event.data.lofiInteractive) {
+                        // YouTube's compact quality picker uses a separate bottom sheet.
+                        // Dismiss it before returning the same player to a background.
+                        document.querySelectorAll('.close-button').forEach(button => button.click());
+                    }
+                });
                 if (document.documentElement) {
                     document.documentElement.appendChild(style);
                 } else {
@@ -271,7 +287,7 @@ final class RadioPlayer: NSObject, WKNavigationDelegate {
         switch type {
         case "ready":
             isReady = true
-            evaluate("document.documentElement.dataset.interactive = '\(surfaces.isInteractive)'")
+            evaluate("radioInteractive(\(surfaces.isInteractive))")
             evaluate(wantsPlayback ? "radioPlay()" : "radioPause()")
         case "state":
             guard let state = message["value"] as? Int else { return }

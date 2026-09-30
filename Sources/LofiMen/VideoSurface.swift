@@ -3,24 +3,25 @@ import SwiftUI
 import WebKit
 
 enum VideoPresentation: Int {
-    case studio = 0, menuBar = 1
+    case studio = 0, menuBar = 1, quality = 2
 }
 
 enum VideoGeometry {
     static let chromeInset: CGFloat = 96
 
-    static func frame(in size: CGSize, fill: Bool, focalPoint: CGFloat) -> CGRect {
+    static func frame(in size: CGSize, fill: Bool, focalPoint: CGFloat, presentation: VideoPresentation = .studio) -> CGRect {
         let ratio: CGFloat = 16 / 9
         // Also crop the stream's baked-in track labels at the video edges; hiding
         // YouTube's HTML title alone cannot remove text inside the live picture.
-        let width = fill ? max(size.width, size.height * ratio) * 1.3 : min(size.width, size.height * ratio)
+        let zoom: CGFloat = presentation == .menuBar ? 1.45 : 1.3
+        let width = fill ? max(size.width, size.height * ratio) * zoom : min(size.width, size.height * ratio)
         let height = width / ratio
         let x = fill ? min(0, max(size.width - width, size.width / 2 - width * focalPoint)) : (size.width - width) / 2
         return CGRect(x: x, y: (size.height - height) / 2, width: width, height: height)
     }
 
-    static func playerFrame(in size: CGSize, fill: Bool, focalPoint: CGFloat) -> CGRect {
-        let video = frame(in: size, fill: fill, focalPoint: focalPoint)
+    static func playerFrame(in size: CGSize, fill: Bool, focalPoint: CGFloat, presentation: VideoPresentation = .studio) -> CGRect {
+        let video = frame(in: size, fill: fill, focalPoint: focalPoint, presentation: presentation)
         // YouTube letterboxes the 16:9 video inside this taller player. Its title and
         // transport controls land in the clipped margins, preserving the video framing.
         return fill ? video.insetBy(dx: 0, dy: -chromeInset) : video
@@ -67,7 +68,7 @@ final class VideoSurfaceRouter {
         let interactive = !destination.fillsBounds
         if isInteractive != interactive {
             isInteractive = interactive
-            webView.evaluateJavaScript("document.documentElement.dataset.interactive = '\(interactive)'", completionHandler: nil)
+            webView.evaluateJavaScript("radioInteractive(\(interactive))", completionHandler: nil)
         }
     }
 }
@@ -113,7 +114,7 @@ final class VideoSurfaceView: NSView {
 
     func layoutPlayer(_ webView: WKWebView) {
         guard webView.superview === self else { return }
-        let frame = VideoGeometry.playerFrame(in: bounds.size, fill: fillsBounds, focalPoint: focalPoint)
+        let frame = VideoGeometry.playerFrame(in: bounds.size, fill: fillsBounds, focalPoint: focalPoint, presentation: presentation)
         if webView.frame != frame { webView.frame = frame }
     }
 
@@ -175,7 +176,7 @@ struct VideoBackdrop: View {
 
     @ViewBuilder private func artwork(in size: CGSize) -> some View {
         if let image = AppResources.artwork(player.station) {
-            let frame = VideoGeometry.frame(in: size, fill: fillsBounds, focalPoint: player.station.focalPoint)
+            let frame = VideoGeometry.frame(in: size, fill: fillsBounds, focalPoint: player.station.focalPoint, presentation: presentation)
             Image(nsImage: image).resizable()
                 .frame(width: frame.width, height: frame.height)
                 .offset(x: frame.minX, y: frame.minY)

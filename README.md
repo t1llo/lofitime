@@ -2,13 +2,16 @@
 
 <img src="assets/icon.png" alt="Lofitime app icon" width="128">
 
+[![Build](https://github.com/t1llo/lofitime/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/t1llo/lofitime/actions/workflows/build.yml)
+[![Gitleaks](https://github.com/t1llo/lofitime/actions/workflows/gitleaks.yml/badge.svg?branch=main)](https://github.com/t1llo/lofitime/actions/workflows/gitleaks.yml)
+[![Latest release](https://img.shields.io/github/v/release/t1llo/lofitime)](https://github.com/t1llo/lofitime/releases/latest)
+![macOS 14+](https://img.shields.io/badge/macOS-14%2B-222222)
+
 **A little music. A little more focus.** A native macOS menu-bar app for lo-fi radio and Pomodoro timers, built with SwiftUI.
 
-[Website](https://lofi.beffa.xyz) · [Download for Mac](https://github.com/t1llo/lofitime/releases/latest) · [Releases](https://github.com/t1llo/lofitime/releases)
+[Website](https://lofi.beffa.xyz) · [Download for Mac](https://github.com/t1llo/lofitime/releases/latest)
 
 ## Install
-
-[Download the latest release](https://github.com/t1llo/lofitime/releases/latest).
 
 Requires **macOS 14 or later**. Open the DMG and drag **Lofitime.app** into **Applications**. Releases support Apple Silicon and Intel Macs and are signed and notarized.
 
@@ -20,26 +23,18 @@ Requires **macOS 14 or later**. Open the DMG and drag **Lofitime.app** into **Ap
 
 ## Features
 
-- Four live stations: Chill house, Study lo-fi, Sleepy lo-fi, and Synthwave.
-- A compact studio and menu-bar panel with live video backgrounds and independent music controls.
-- Customizable Pomodoro cycles, with default focus and break durations of 25 / 5 / 15 minutes.
-- Editable countdowns: enter minutes (`45`) or minutes and seconds (`25:30`).
-- An **80-day activity grid** with daily focus totals and session history.
-- Candlelight and Catppuccin Mocha themes.
-- Launch at login, completion notifications, chimes, and optional automatic session transitions.
-- Automatic updates, configurable in Settings.
+- **Live lo-fi radio:** Chill house (default), Study lo-fi, Sleepy lo-fi, and Synthwave.
+- **Focus timers:** customizable Pomodoro cycles and editable countdowns.
+- **Activity:** an 80-day focus grid with locally saved session history.
+- **Native macOS:** a compact studio, menu-bar player, two themes, and completion notifications.
+- **Convenience:** launch at login, automatic updates, and optional automatic breaks.
+- **Video quality:** choose an available resolution through YouTube's player in Settings.
 
 ## Using Lofitime
 
-Choose a station and press **Play music** to listen, or **Start focus** to begin a session. Music and timer controls work independently. Closing the studio keeps the app in your menu bar; choose **Open studio** to return.
+Choose a station and press **Play music**, or **Start focus** to begin a timer. Music and timers work independently; closing the studio keeps Lofitime in your menu bar.
 
-Type a duration directly into the countdown and press Return or Start to apply it. Pause a running timer before editing its time. A custom duration applies to the current session; saved defaults are available in Settings.
-
-Activity squares show completed focus sessions. Hover a square for its totals or click it to see that day's sessions. Older history is retained locally, along with your preferences and current timer. Skipped and reset sessions do not count as completed work.
-
-Allow macOS notifications when prompted to receive completion alerts. Launch at login and notification preferences can be changed in Settings. Use **Check for Updates…** in the app menu or the panel's `…` menu to check for updates immediately.
-
-Radio playback requires an internet connection. Connection errors include a retry control; the studio's video button opens the player for any YouTube prompts.
+Enter `45` or `25:30` into a paused countdown to change its duration. Open **Activity** for completed sessions and **Settings** for timer defaults, themes, and startup preferences. Radio playback requires an internet connection.
 
 ## Build from source
 
@@ -52,38 +47,17 @@ make run
 
 The app is built at **`build/Lofitime.app`**. Local builds use an ad-hoc signature.
 
-### Development commands
-
 | Command | What it does |
 | --- | --- |
-| `make run` | Release-build, restart the running app, and open it |
-| `make build` | Create `build/Lofitime.app` |
-| `make dev` | Build and launch a debug app |
-| `make test` | Run deterministic timer, activity, and preference-migration tests |
-| `make check` | Run tests, release-build, and verify the signature and bundle resources |
-| `make smoke` | Run the native app against all four real YouTube streams |
-| `make preview` | Render native screenshots to `build/previews/` |
-| `make install` | Copy the release app into `~/Applications` |
-| `make clean` | Remove generated files |
+| `make check` | Test, build, and verify the app bundle |
+| `make dev` | Launch a debug build |
+| `make smoke` | Check native controls and live playback |
+| `make preview` | Save screenshots to `build/previews/` |
 | `make help` | List commands |
 
-Tests run with Command Line Tools alone. Native smoke tests require an internet connection and a logged-in macOS desktop session, use isolated settings, and play briefly at 1% volume. Use `LOFI_BACKGROUND_SECONDS=360 make smoke` for a six-minute background-playback check.
-
-Previews are saved to `build/previews/`. The activity example uses sample data without changing your session history.
-
-### Secret scanning
-
-GitHub Actions runs Gitleaks against the full Git history on every push and pull request. Detected secrets fail the workflow, and secret values are redacted in the logs. You can also run the workflow manually from the Actions tab.
-
-To run the same scan locally with Gitleaks installed:
-
-```sh
-gitleaks git --redact --no-banner --log-opts="--all" .
-```
+GitHub Actions checks builds and scans Git history with Gitleaks on every push and pull request. Smoke tests require internet and a logged-in desktop session; they use isolated settings and play briefly at 1% volume.
 
 ## Keyboard shortcuts
-
-When Lofitime is the active app:
 
 | Shortcut | Action |
 | --- | --- |

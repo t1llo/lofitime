@@ -11,6 +11,7 @@ fi
 
 args=(--configuration "$CONFIGURATION" --product LofiMen --disable-keychain)
 cp assets/lofi-head.svg Sources/LofiMen/Resources/lofi-head.svg
+cp assets/icon.png Sources/LofiMen/Resources/app-icon.png
 if [[ "${LOFITIME_UNIVERSAL:-0}" == 1 ]]; then args+=(--arch arm64 --arch x86_64); fi
 swift build "${args[@]}"
 BIN_DIR="$(swift build "${args[@]}" --show-bin-path)"

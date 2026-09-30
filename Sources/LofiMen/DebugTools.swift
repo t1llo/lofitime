@@ -113,6 +113,18 @@ enum DebugTools {
     }
 
     @MainActor private static func smoke(_ model: AppModel) async {
+        let labelSizes = ["00:00", "01:11", "09:59", "10:00", "59:59", "180:00"].flatMap { text in
+            [false, true].map { MenuBarLabel.image(countdown: text, paused: $0).size }
+        }
+        guard labelSizes.allSatisfy({ $0 == NSSize(width: 98, height: 18) }) else {
+            smokeFailure("Menu-bar countdown width changes with digits or pause state"); return
+        }
+        let studioVideo = VideoGeometry.frame(in: MenuBarView.size, fill: true, focalPoint: 0.5)
+        let menuVideo = VideoGeometry.frame(in: MenuBarView.size, fill: true, focalPoint: 0.5, presentation: .menuBar)
+        guard menuVideo.height > studioVideo.height, menuVideo.minY < 0, menuVideo.maxY > MenuBarView.size.height else {
+            smokeFailure("Menu-bar video does not overscan the panel edges"); return
+        }
+        print("PASS: menu-bar countdown has fixed width across digits and pause states; preview overscans its edges")
         model.preferences.startMusicWithFocus = false
         model.setDuration(1_530)
         model.preferences.appearance = .catppuccin
@@ -229,6 +241,8 @@ enum DebugTools {
             }
         }
 
+        await smokeVideoQuality(model)
+
         guard let studioSurface = model.player.surfaces.activeSurface,
               studioSurface.presentation == .studio, studioSurface.window?.isVisible == true else {
             smokeFailure("The live player is not attached to the studio background (surface: \(String(describing: model.player.surfaces.activeSurface?.presentation)), window: \(String(describing: model.player.webView.window?.title)), visible: \(String(describing: model.player.webView.window?.isVisible)))"); return
@@ -259,7 +273,7 @@ enum DebugTools {
         let controls = try? await model.player.webView.evaluateJavaScript("new URL(player.getIframe().src).searchParams.get('controls')")
         guard frame.minY <= -VideoGeometry.chromeInset,
               frame.maxY >= MenuBarView.size.height + VideoGeometry.chromeInset,
-              pointerEvents as? String == "none", controls as? String == "0" else {
+               pointerEvents as? String == "none", controls as? String == "1" else {
             smokeFailure("YouTube chrome or hover controls can enter the menu background"); return
         }
         print("PASS: YouTube title/control margins are clipped and background hover is disabled")
@@ -396,6 +410,80 @@ enum DebugTools {
             print("PASS: \(player.station.title) video is visible without YouTube titles or playback overlays")
         } catch {
             smokeFailure("Could not verify the YouTube background: \(error)")
+        }
+    }
+
+    @MainActor private static func smokeVideoQuality(_ model: AppModel) async {
+        guard let studio = NSApp.windows.first(where: { $0.title == "Lofitime" }) else {
+            smokeFailure("Studio unavailable for quality settings"); return
+        }
+        let marker = UUID().uuidString
+        _ = try? await model.player.webView.evaluateJavaScript("window.qualityMarker = '\(marker)'")
+        guard await click("navigation-Settings", in: studio),
+              await click("video-quality-settings", in: studio) else {
+            smokeFailure("Video quality settings could not be opened"); return
+        }
+        try? await Task.sleep(for: .seconds(1))
+        guard model.player.surfaces.activeSurface?.presentation == .quality,
+              model.player.surfaces.isInteractive, let frame = model.player.diagnosticFrame else {
+            smokeFailure("Quality settings did not host the same interactive YouTube player"); return
+        }
+        do {
+            let opened = try await model.player.webView.callAsyncJavaScript("""
+                const gear = document.querySelector('.ytp-settings-button, .player-settings-icon');
+                if (!gear || getComputedStyle(gear).display === 'none') return 'Quality gear is hidden';
+                gear.click();
+                await new Promise(resolve => setTimeout(resolve, 400));
+                const quality = [...document.querySelectorAll('.ytp-menuitem, [role="menuitem"]')].find(item =>
+                    item.textContent.includes('Quality'));
+                if (!quality) return 'Quality row is missing';
+                quality.click();
+                await new Promise(resolve => setTimeout(resolve, 400));
+                return true;
+                """, arguments: [:], in: frame, contentWorld: .page)
+            guard opened as? Bool == true else {
+                smokeFailure("YouTube's real quality menu is unavailable: \(String(describing: opened))"); return
+            }
+            try? await Task.sleep(for: .milliseconds(300))
+            let options = try await model.player.webView.callAsyncJavaScript("""
+                return [...document.querySelectorAll('.ytp-quality-menu .ytp-menuitem, [role="menuitem"], [role="menuitemradio"]')]
+                    .map(item => item.textContent.trim());
+                """, arguments: [:], in: frame, contentWorld: .page)
+            guard let options = options as? [String], options.contains(where: { $0.hasPrefix("720p") || $0.hasPrefix("1080p") }) else {
+                smokeFailure("YouTube quality menu did not list HD choices (\(String(describing: options)))"); return
+            }
+            let selected = try await model.player.webView.callAsyncJavaScript("""
+                const choice = [...document.querySelectorAll('.ytp-quality-menu .ytp-menuitem, [role="menuitem"], [role="menuitemradio"]')]
+                    .find(item => item.textContent.trim().startsWith('720p'));
+                if (!choice) return false;
+                choice.click();
+                return true;
+                """, arguments: [:], in: frame, contentWorld: .page)
+            guard selected as? Bool == true else {
+                smokeFailure("YouTube's 720p quality option could not be selected"); return
+            }
+            // Close the native sheet without changing the user's playback intent.
+            guard let sheet = studio.attachedSheet, await click("video-quality-done", in: sheet) else {
+                smokeFailure("Video quality settings could not be dismissed"); return
+            }
+            guard await click("navigation-Studio", in: studio) else {
+                smokeFailure("Studio could not reopen after quality settings"); return
+            }
+            try? await Task.sleep(for: .milliseconds(500))
+            let preserved = try await model.player.webView.evaluateJavaScript("window.qualityMarker")
+            guard preserved as? String == marker else {
+                smokeFailure("Quality settings reloaded the radio"); return
+            }
+            let closed = try await model.player.webView.callAsyncJavaScript("""
+                return ![...document.querySelectorAll('[role="menuitem"], [role="menuitemradio"]')].some(node =>
+                    node.getClientRects().length && getComputedStyle(node).visibility !== 'hidden');
+                """, arguments: [:], in: frame, contentWorld: .page)
+            guard closed as? Bool == true else {
+                smokeFailure("YouTube's quality picker remained over the background after closing Settings"); return
+            }
+            print("PASS: Settings opens YouTube's actual HD choices and selects 720p without reloading playback")
+        } catch {
+            smokeFailure("Could not verify quality settings: \(error)")
         }
     }
 

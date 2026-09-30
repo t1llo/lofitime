@@ -6,6 +6,7 @@ struct PreferencesView: View {
     @Bindable var model: AppModel
     @ObservedObject private var updater = UpdateService.shared
     @ObservedObject private var login = LoginService.shared
+    @State private var showingVideoQuality = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -19,6 +20,15 @@ struct PreferencesView: View {
                     }
                 }
             }.frame(maxWidth: .infinity, alignment: .leading).roomCard(padding: 16)
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Video quality").font(.room(size: 13, weight: .medium))
+                Button("Choose YouTube quality…") {
+                    showingVideoQuality = true
+                }.accessibilityIdentifier("video-quality-settings")
+                Text("Choose a resolution in YouTube's gear menu → Quality. Available resolutions and how long the choice is remembered are managed by YouTube, not Lofitime.")
+                    .font(.room(size: 10)).foregroundStyle(theme.muted)
+            }.roomCard(padding: 16)
 
             VStack(alignment: .leading, spacing: 18) {
                 Text("Timer defaults").font(.room(size: 13, weight: .medium))
@@ -82,6 +92,9 @@ struct PreferencesView: View {
             login.refresh()
             await model.refreshNotificationAuthorization()
         }
+        .sheet(isPresented: $showingVideoQuality) {
+            VideoQualityView(player: model.player)
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             login.refresh()
             Task { await model.refreshNotificationAuthorization() }
@@ -124,6 +137,32 @@ struct PreferencesView: View {
             Text(title).font(.room(size: 11)).foregroundStyle(theme.secondary)
             IntegerField(label: "\(title) minutes", value: value, range: 1...180, unit: "min")
         }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct VideoQualityView: View {
+    let player: RadioPlayer
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("YouTube video quality").font(.headline)
+                Spacer()
+                Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
+                    .accessibilityIdentifier("video-quality-done")
+            }
+            Text("Start playback if needed, then use the gear → Quality to choose a resolution. The same player supplies the studio and menu-bar previews.")
+                .font(.caption).foregroundStyle(.secondary)
+            RadioWebView(player: player, presentation: .quality, fillsBounds: false)
+                .frame(width: 560, height: 315)
+            if let error = player.error {
+                Text(error).font(.caption)
+                Button("Retry") { player.retry() }
+            }
+        }
+        .padding(20)
+        .onAppear { if !player.hasLoaded { player.play() } }
     }
 }
 

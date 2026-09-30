@@ -109,17 +109,13 @@ struct IconButton: View {
 }
 
 struct BrandMark: View {
-    @Environment(\.roomTheme) private var theme
     var size: CGFloat = 26
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.3).fill(theme.accent)
-            HStack(spacing: size * 0.065) {
-                ForEach(Array([0.26, 0.46, 0.63, 0.4, 0.23].enumerated()), id: \.offset) { _, height in
-                    Capsule().fill(theme.background).frame(width: size * 0.075, height: size * height)
-                }
-            }
-        }.frame(width: size, height: size)
+        Image(nsImage: AppResources.appIcon)
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
     }
 }
 

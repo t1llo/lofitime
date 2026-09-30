@@ -23,7 +23,7 @@
         videoId: '__VIDEO_ID__',
         width: '100%', height: '100%',
         playerVars: {
-          autoplay: 0, playsinline: 1, controls: 0, disablekb: 1, iv_load_policy: 3, rel: 0,
+          autoplay: 0, playsinline: 1, controls: 1, disablekb: 1, iv_load_policy: 3, rel: 0,
           origin: 'https://com.lofimen.app',
           widget_referrer: 'https://com.lofimen.app'
         },
@@ -41,6 +41,12 @@
     function radioPlay() { if (player && player.playVideo) player.playVideo(); }
     function radioPause() { if (player && player.pauseVideo) player.pauseVideo(); }
     function radioVolume(value) { if (player && player.setVolume) player.setVolume(value); }
+    function radioInteractive(value) {
+      document.documentElement.dataset.interactive = String(value);
+      if (player && player.getIframe) {
+        player.getIframe().contentWindow.postMessage({ lofiInteractive: value }, 'https://www.youtube.com');
+      }
+    }
     function radioPlaybackStatus() {
       if (!player || !player.getPlayerState) return null;
       return { state: player.getPlayerState(), time: player.getCurrentTime() };
