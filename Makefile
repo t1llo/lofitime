@@ -21,7 +21,10 @@ dev: debug ## Build and open a debug app
 	@./scripts/run-app.sh
 
 test: ## Run timer, activity, and preference tests (no network needed)
-	swift run LofiMenCoreTests
+	swift build --product LofiMenCoreTests --disable-keychain
+	@set -e; bin="$$(swift build --product LofiMenCoreTests --disable-keychain --show-bin-path)/LofiMenCoreTests"; \
+		codesign --force --sign - "$$bin"; \
+		"$$bin"
 
 check: test build ## Test, release-build, and verify the app bundle
 	plutil -lint "$(APP)/Contents/Info.plist"
