@@ -22,8 +22,6 @@ struct FocusGarden: View {
                     .font(.room(size: 11)).foregroundStyle(theme.secondary)
             }
             HStack {
-                Text("One square per day · scroll to zoom · drag to pan")
-                    .font(.room(size: 10)).foregroundStyle(theme.muted)
                 Spacer()
                 Button { zoom = max(1, zoom / 1.3) } label: { Image(systemName: "minus.magnifyingglass") }
                 Button { zoom = min(4, zoom * 1.3) } label: { Image(systemName: "plus.magnifyingglass") }
@@ -36,7 +34,7 @@ struct FocusGarden: View {
             GardenSceneView(weeks: activity.gardenWeeks, selectedDay: selectedDay, theme: theme, soundEnabled: soundEnabled, zoom: $zoom) { date in
                 selectedDay = selectedDay == date ? nil : date
             }
-            .frame(height: 260)
+            .frame(height: 290)
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .accessibilityLabel("Five full weeks of daily forest squares. Scroll to zoom and drag to pan.")
 
@@ -50,11 +48,6 @@ struct FocusGarden: View {
                 }
                 Text("More")
             }.font(.room(size: 10)).foregroundStyle(theme.muted)
-            Text(activity.totalSessions == 0
-                 ? "A quiet clearing, ready for your first session. Even a little focus grows a flower."
-                  : "Each day grows a little forest. Zoom closer to hear its birds and breeze.")
-                .font(.room(size: 10)).foregroundStyle(theme.muted)
-                .fixedSize(horizontal: false, vertical: true)
         }.roomCard(padding: 14)
     }
 }
@@ -93,7 +86,7 @@ struct GardenSceneView: NSViewRepresentable {
         view.updateAmbience()
         view.weekCount = weeks.count
         view.fitCamera()
-        if zoom == 1 { view.pointOfView?.position = SCNVector3(-0.35, 16, 10) }
+        if zoom == 1 { view.pointOfView?.position = SCNVector3(0, 16, 10) }
         for day in weeks.flatMap(\.days) {
             view.scene?.rootNode.childNode(withName: "selection-\(day.date.timeIntervalSince1970)", recursively: true)?.isHidden = day.date != selectedDay
         }
@@ -126,8 +119,8 @@ struct GardenSceneView: NSViewRepresentable {
             // Fit the actual calendar, not an oversized landscape. Weekdays run
             // across the map so 30 days naturally fill a wide app panel.
             let aspect = bounds.width / bounds.height
-            let width: CGFloat = 8.4
-            let height = CGFloat(weekCount) * 1.06 * 0.848 + 1.3
+            let width: CGFloat = 7.4
+            let height = CGFloat(weekCount) * 1.06 * 0.848 + 0.55
             fittedScale = max(height / 2, width / aspect / 2) * 1.02
             pointOfView?.camera?.orthographicScale = fittedScale / zoom
         }
@@ -273,8 +266,8 @@ struct GardenSceneView: NSViewRepresentable {
         camera.camera?.orthographicScale = 4.0
         camera.camera?.zNear = 0.1
         camera.camera?.zFar = 100
-        camera.position = SCNVector3(-0.35, 16, 10)
-        camera.look(at: SCNVector3(-0.35, 0, 0))
+        camera.position = SCNVector3(0, 16, 10)
+        camera.look(at: SCNVector3Zero)
         root.addChildNode(camera)
         let sun = SCNNode()
         sun.light = SCNLight()
@@ -294,25 +287,7 @@ struct GardenSceneView: NSViewRepresentable {
         ambient.light?.color = color(0.84, 0.90, 1)
         root.addChildNode(ambient)
 
-        func label(_ value: String, at position: SCNVector3) {
-            let text = SCNText(string: value, extrusionDepth: 0)
-            text.font = NSFont.systemFont(ofSize: 1, weight: .medium)
-            text.flatness = 0.2
-            let caption = node(text, color: NSColor(theme.secondary), at: position)
-            text.materials.first?.lightingModel = .constant
-            caption.scale = SCNVector3(0.22, 0.22, 0.22)
-            caption.eulerAngles.x = -.pi / 2
-            root.addChildNode(caption)
-        }
         let centerRow = Float(weeks.count - 1) / 2
-        for day in 0..<7 {
-            label(Calendar.current.shortWeekdaySymbols[day], at: SCNVector3(Float(day - 3) * 1.06 - 0.3, 0, -centerRow * 1.06 - 0.85))
-        }
-        for week in weeks {
-            let date = week.days.first(where: \.isInRange)?.date ?? week.id
-            label(date.formatted(.dateTime.month(.abbreviated).day()),
-                  at: SCNVector3(-4.55, 0, (Float(week.index) - centerRow) * 1.06))
-        }
 
         for week in weeks {
           for (row, day) in week.days.enumerated() {
