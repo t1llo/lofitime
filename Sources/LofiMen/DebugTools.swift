@@ -260,6 +260,11 @@ enum DebugTools {
         panel.center()
         panel.orderFront(nil)
         try? await Task.sleep(for: .seconds(1))
+        guard !panel.isOpaque,
+              panel.contentView?.layer?.cornerRadius == MenuBarView.cornerRadius,
+              panel.contentView?.superview?.layer?.cornerRadius == MenuBarView.cornerRadius else {
+            smokeFailure("The outer menu-bar window did not use the rounded preview shape"); return
+        }
         guard model.player.surfaces.activeSurface?.presentation == .menuBar,
               model.player.webView.window === panel,
               model.player.webView.frame.width >= MenuBarView.size.width,
