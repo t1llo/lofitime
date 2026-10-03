@@ -3,7 +3,6 @@
 <img src="assets/icon.png" alt="Lofitime app icon" width="128">
 
 [![Build](https://github.com/t1llo/lofitime/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/t1llo/lofitime/actions/workflows/build.yml)
-[![Gitleaks](https://github.com/t1llo/lofitime/actions/workflows/gitleaks.yml/badge.svg?branch=main)](https://github.com/t1llo/lofitime/actions/workflows/gitleaks.yml)
 [![Latest release](https://img.shields.io/github/v/release/t1llo/lofitime)](https://github.com/t1llo/lofitime/releases/latest)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-222222)
 
