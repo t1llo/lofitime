@@ -29,8 +29,8 @@ struct FocusTimerTests {
             ("Completion boundary and repeated start are exact", exactBoundary),
             ("Typed durations accept exact seconds and reject invalid input", durationInput),
             ("Custom durations persist, reset, and complete precisely", customDuration),
-            ("Activity aggregates sessions across five full calendar weeks", activityAggregation),
-            ("Garden growth rewards focused time and caps scene density", gardenGrowth),
+            ("Activity aggregates sessions across three full calendar weeks", activityAggregation),
+            ("Short sessions grow a varied, stable forest with bounded density", gardenGrowth),
             ("Activity excludes old and future records", activityRange),
             ("Activity respects local days across daylight-saving changes", activityTimeZone),
             ("Existing preferences migrate and theme choice persists", preferenceMigration)
@@ -203,26 +203,26 @@ struct FocusTimerTests {
         ]
         let activity = FocusActivity(records: records, through: now, calendar: calendar)
         let days = activity.weeks.flatMap { $0 }
-        try expectEqual(activity.weeks.count, 5)
+        try expectEqual(activity.weeks.count, 3)
         try expectEqual(activity.weeks.allSatisfy { $0.count == 7 }, true)
-        try expectEqual(days.filter(\.isInRange).count, 31)
-        try expectEqual(Set(days.map(\.date)).count, 35)
+        try expectEqual(days.filter(\.isInRange).count, 17)
+        try expectEqual(Set(days.map(\.date)).count, 21)
         try expectEqual(activity.weeks.allSatisfy { calendar.component(.weekday, from: $0[0].date) == 1 }, true)
         try expectEqual(activity.totalSessions, 3)
         try expectEqual(activity.totalDuration, 3_030)
         try expectEqual(activity.activeDays, 2)
-        try expectEqual(days.first { $0.date == calendar.startOfDay(for: now) }?.level, 2)
+        try expectEqual(days.first { $0.date == calendar.startOfDay(for: now) }?.level, 4)
         try expectEqual(days.first { $0.date == calendar.startOfDay(for: yesterday) }?.level, 1)
         for offset in 0..<7 {
             let end = calendar.date(byAdding: .day, value: offset, to: now)!
             let window = FocusActivity(records: [], through: end, calendar: calendar)
             let visible = window.weeks.flatMap { $0 }.filter(\.isInRange)
-            try expectEqual(visible.count, 28 + calendar.component(.weekday, from: end))
+            try expectEqual(visible.count, 14 + calendar.component(.weekday, from: end))
             try expectEqual(visible.first?.date, window.startDate)
             try expectEqual(visible.last?.date, window.endDate)
             try expectEqual(window.weeks.allSatisfy { $0.count == 7 }, true)
-            try expectEqual(window.weeks.count, 5)
-            try expectEqual(window.weeks.flatMap { $0 }.count, 35)
+            try expectEqual(window.weeks.count, 3)
+            try expectEqual(window.weeks.flatMap { $0 }.count, 21)
         }
     }
 
@@ -230,7 +230,7 @@ struct FocusTimerTests {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let now = ISO8601DateFormatter().date(from: "2026-09-29T12:00:00Z")!
-        let firstDay = calendar.date(from: DateComponents(year: 2026, month: 8, day: 30))!
+        let firstDay = calendar.date(from: DateComponents(year: 2026, month: 9, day: 13))!
         let records = [firstDay.addingTimeInterval(-1), firstDay, now, now.addingTimeInterval(1)].map {
             SessionRecord(finishedAt: $0, duration: 60, intention: "Boundary")
         }
@@ -243,11 +243,11 @@ struct FocusTimerTests {
         try expectEqual(empty.totalSessions, 0)
         try expectEqual(empty.weeks.flatMap { $0 }.allSatisfy { $0.level == 0 }, true)
         let leapYear = FocusActivity(records: [], through: ISO8601DateFormatter().date(from: "2024-03-31T12:00:00Z")!, calendar: calendar)
-        try expectEqual(leapYear.startDate, calendar.date(from: DateComponents(year: 2024, month: 3, day: 3))!)
-        try expectEqual(leapYear.weeks.flatMap { $0 }.filter(\.isInRange).count, 29)
+        try expectEqual(leapYear.startDate, calendar.date(from: DateComponents(year: 2024, month: 3, day: 17))!)
+        try expectEqual(leapYear.weeks.flatMap { $0 }.filter(\.isInRange).count, 15)
         let newYear = FocusActivity(records: [], through: ISO8601DateFormatter().date(from: "2026-01-15T12:00:00Z")!, calendar: calendar)
-        try expectEqual(newYear.startDate, calendar.date(from: DateComponents(year: 2025, month: 12, day: 14))!)
-        try expectEqual(newYear.weeks.flatMap { $0 }.filter(\.isInRange).count, 33)
+        try expectEqual(newYear.startDate, calendar.date(from: DateComponents(year: 2025, month: 12, day: 28))!)
+        try expectEqual(newYear.weeks.flatMap { $0 }.filter(\.isInRange).count, 19)
     }
 
     static func activityTimeZone() throws {
@@ -273,18 +273,38 @@ struct FocusTimerTests {
         }
         try expectEqual(day(0).flowers, 0)
         try expectEqual(day(1).flowers, 1)
-        try expectEqual(day(1_500).flowers, 1)
-        try expectEqual(day(3_600).bushes, 1)
-        try expectEqual(day(7_200).trees, 1)
-        try expectEqual(day(10_799).hasHive, false)
-        try expectEqual(day(10_800).hasHive, true)
-        try expectEqual(day(14_399).hasFox, false)
-        try expectEqual(day(14_400).hasFox, true)
+        try expectEqual((4...6).contains(day(1_200).flowers), true)
+        try expectEqual(day(1_200).bushes, 1)
+        try expectEqual(day(600).trees, 0)
+        try expectEqual(day(1_800).trees, 1)
+        try expectEqual(day(3_000).trees, 2)
+        try expectEqual(day(599).hasHive, false)
+        try expectEqual(day(2_400).hasHive, true)
+        try expectEqual(day(1_200).hasFox, false)
+        try expectEqual(day(3_300).hasFox, true)
         let rich = day(1_000_000)
-        try expectEqual(rich.flowers, 5)
-        try expectEqual(rich.bushes, 1)
-        try expectEqual(rich.trees, 1)
+        try expectEqual((6...8).contains(rich.flowers), true)
+        try expectEqual((1...2).contains(rich.bushes), true)
+        try expectEqual(rich.trees, 3)
         try expectEqual(rich.bees, 1)
+
+        let variedDays = (0..<30).map { offset in
+            ActivityDay(date: start.addingTimeInterval(Double(offset) * 86_400), duration: 1_200, sessions: 1, isInRange: true)
+        }
+        try expectEqual(Set(variedDays.map(\.trees)), Set([0, 1]))
+        try expectEqual(Set(variedDays.map(\.flowers)).count > 1, true)
+        for original in variedDays {
+            let rebuilt = ActivityDay(date: original.date, duration: original.duration, sessions: original.sessions, isInRange: true)
+            try expectEqual(original.plantingSeed, rebuilt.plantingSeed)
+            try expectEqual(original.flowers, rebuilt.flowers)
+            try expectEqual(original.trees, rebuilt.trees)
+            var previous = (flowers: 0, bushes: 0, trees: 0)
+            for minutes in 0...90 {
+                let grown = ActivityDay(date: original.date, duration: Double(minutes * 60), sessions: 1, isInRange: true)
+                try expectEqual(grown.flowers >= previous.flowers && grown.bushes >= previous.bushes && grown.trees >= previous.trees, true)
+                previous = (grown.flowers, grown.bushes, grown.trees)
+            }
+        }
     }
 
     static func preferenceMigration() throws {

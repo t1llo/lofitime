@@ -10,45 +10,12 @@ struct FocusGarden: View {
     let activity: FocusActivity
     @Binding var selectedDay: Date?
     @State private var zoom = 1.0
-    @State private var soundEnabled = true
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label("Your focus forest", systemImage: "leaf.fill")
-                    .font(.room(size: 13, weight: .medium))
-                Spacer()
-                Text("\(SessionDuration.summary(activity.totalDuration)) focused")
-                    .font(.room(size: 11)).foregroundStyle(theme.secondary)
-            }
-            HStack {
-                Spacer()
-                Button { zoom = max(1, zoom / 1.3) } label: { Image(systemName: "minus.magnifyingglass") }
-                Button { zoom = min(4, zoom * 1.3) } label: { Image(systemName: "plus.magnifyingglass") }
-                Button("Reset") { zoom = 1 }
-                Button { soundEnabled.toggle() } label: {
-                    Image(systemName: soundEnabled ? "speaker.wave.1" : "speaker.slash")
-                }.help("Forest sounds at close zoom")
-                    .accessibilityLabel(soundEnabled ? "Mute forest sounds" : "Enable forest sounds")
-            }.buttonStyle(.plain)
-            GardenSceneView(weeks: activity.gardenWeeks, selectedDay: selectedDay, theme: theme, soundEnabled: soundEnabled, zoom: $zoom) { date in
-                selectedDay = selectedDay == date ? nil : date
-            }
-            .frame(height: 290)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .accessibilityLabel("Five full weeks of daily forest squares. Scroll to zoom and drag to pan.")
-
-            HStack {
-                Text("\(activity.activeDays) active days")
-                Spacer()
-                Text("Less")
-                ForEach(0..<5) { level in
-                    RoundedRectangle(cornerRadius: 2).fill(Color(nsColor: GardenBuilder.tileColor(level: level, theme: theme)))
-                        .frame(width: 10, height: 10)
-                }
-                Text("More")
-            }.font(.room(size: 10)).foregroundStyle(theme.muted)
-        }.roomCard(padding: 14)
+        GardenSceneView(weeks: activity.gardenWeeks, selectedDay: selectedDay, theme: theme, zoom: $zoom) { date in
+            selectedDay = selectedDay == date ? nil : date
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -56,7 +23,6 @@ struct GardenSceneView: NSViewRepresentable {
     let weeks: [GardenWeek]
     let selectedDay: Date?
     let theme: RoomTheme
-    let soundEnabled: Bool
     @Binding var zoom: Double
     let select: (Date) -> Void
 
@@ -66,6 +32,10 @@ struct GardenSceneView: NSViewRepresentable {
         view.preferredFramesPerSecond = 24
         view.backgroundColor = NSColor(theme.background)
         view.allowsCameraControl = false
+        view.setAccessibilityElement(true)
+        view.setAccessibilityRole(.group)
+        view.setAccessibilityLabel("\(FocusActivity.historyWeeks) full weeks of daily forest squares. Hover for focus time, click for sessions, scroll to zoom and drag to pan.")
+        view.setAccessibilityIdentifier("activity-forest")
         return view
     }
 
@@ -76,14 +46,13 @@ struct GardenSceneView: NSViewRepresentable {
         let signature = NSColor(theme.background).description + weeks.flatMap(\.days).map { "\($0.date.timeIntervalSince1970):\($0.duration):\($0.isInRange)" }.joined(separator: "|")
         if view.signature != signature {
             view.signature = signature
+            view.hideHover()
             view.backgroundColor = NSColor(theme.background)
             view.scene = GardenBuilder.scene(weeks: weeks, theme: theme)
             view.pointOfView = view.scene?.rootNode.childNode(withName: "camera", recursively: false)
-            view.isPlaying = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion && weeks.flatMap(\.days).contains { $0.duration >= 10_800 }
+            view.isPlaying = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion && weeks.flatMap(\.days).contains { $0.hasHive || $0.hasFox }
         }
         view.zoom = zoom
-        view.soundEnabled = soundEnabled
-        view.updateAmbience()
         view.weekCount = weeks.count
         view.fitCamera()
         if zoom == 1 { view.pointOfView?.position = SCNVector3(0, 16, 10) }
@@ -94,7 +63,6 @@ struct GardenSceneView: NSViewRepresentable {
 
     static func dismantleNSView(_ view: GardenView, coordinator: ()) {
         view.isPlaying = false
-        view.ambience?.stop()
         view.scene = nil
     }
 
@@ -103,13 +71,13 @@ struct GardenSceneView: NSViewRepresentable {
         var select: ((Date) -> Void)?
         var changeZoom: ((Double) -> Void)?
         var zoom = 1.0
-        var soundEnabled = true
-        var ambience: NSSound?
-        var weekCount = 5
+        var weekCount = FocusActivity.historyWeeks
         var fittedScale = 3.0
         var days: [ActivityDay] = []
         private var start: NSPoint?
         private var dragged = false
+        private var hoverTracking: NSTrackingArea?
+        private let hoverCard = HoverCard()
         override func layout() {
             super.layout()
             fitCamera()
@@ -117,28 +85,82 @@ struct GardenSceneView: NSViewRepresentable {
         func fitCamera() {
             guard bounds.width > 0, bounds.height > 0 else { return }
             // Fit the actual calendar, not an oversized landscape. Weekdays run
-            // across the map so 30 days naturally fill a wide app panel.
+            // across the map so each day has room for its low-poly details.
             let aspect = bounds.width / bounds.height
             let width: CGFloat = 7.4
             let height = CGFloat(weekCount) * 1.06 * 0.848 + 0.55
             fittedScale = max(height / 2, width / aspect / 2) * 1.02
             pointOfView?.camera?.orthographicScale = fittedScale / zoom
         }
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            updateAmbience()
+        override func updateTrackingAreas() {
+            super.updateTrackingAreas()
+            if let hoverTracking { removeTrackingArea(hoverTracking) }
+            let tracking = NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self)
+            addTrackingArea(tracking)
+            hoverTracking = tracking
         }
-        func updateAmbience() {
-            guard soundEnabled, zoom >= 2, window != nil else {
-                ambience?.stop()
-                return
+        override func mouseEntered(with event: NSEvent) { mouseMoved(with: event) }
+        override func mouseMoved(with event: NSEvent) {
+            let location = convert(event.locationInWindow, from: nil)
+            guard let day = day(at: location) else { hideHover(); return }
+            if hoverCard.superview == nil { addSubview(hoverCard) }
+            hoverCard.show(day)
+            let size = hoverCard.frame.size
+            hoverCard.setFrameOrigin(NSPoint(
+                x: min(max(8, location.x + 14), max(8, bounds.width - size.width - 8)),
+                y: min(max(8, location.y + 14), max(8, bounds.height - size.height - 8))))
+            hoverCard.isHidden = false
+        }
+        override func mouseExited(with event: NSEvent) { hideHover() }
+        func hideHover() { hoverCard.isHidden = true }
+
+        func day(at location: NSPoint) -> ActivityDay? {
+            for hit in hitTest(location, options: [.searchMode: SCNHitTestSearchMode.all.rawValue]) {
+                var node: SCNNode? = hit.node
+                while let current = node {
+                    if let name = current.name, name.hasPrefix("day-"), let timestamp = Double(name.dropFirst(4)) {
+                        return days.first { $0.date.timeIntervalSince1970 == timestamp }
+                    }
+                    node = current.parent
+                }
             }
-            if ambience == nil {
-                ambience = ForestAmbience.makeSound()
-                ambience?.loops = true
+            return nil
+        }
+
+        final class HoverCard: NSView {
+            private let dateLabel = NSTextField(labelWithString: "")
+            private let durationLabel = NSTextField(labelWithString: "")
+
+            init() {
+                super.init(frame: .zero)
+                wantsLayer = true
+                layer?.backgroundColor = NSColor.black.withAlphaComponent(0.85).cgColor
+                layer?.cornerRadius = 10
+                dateLabel.font = .systemFont(ofSize: 11)
+                dateLabel.textColor = .white.withAlphaComponent(0.75)
+                durationLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+                durationLabel.textColor = .white
+                addSubview(dateLabel)
+                addSubview(durationLabel)
+                isHidden = true
+                setAccessibilityIdentifier("activity-day-hover")
             }
-            ambience?.volume = Float(min(0.18, (zoom - 1.8) * 0.08))
-            if ambience?.isPlaying == false { ambience?.play() }
+
+            required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+            func show(_ day: ActivityDay) {
+                dateLabel.stringValue = day.date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
+                durationLabel.stringValue = "\(SessionDuration.summary(day.duration)) focused"
+                dateLabel.sizeToFit()
+                durationLabel.sizeToFit()
+                let width = max(dateLabel.frame.width, durationLabel.frame.width) + 24
+                frame.size = NSSize(width: width, height: 58)
+                dateLabel.setFrameOrigin(NSPoint(x: 12, y: 34))
+                durationLabel.setFrameOrigin(NSPoint(x: 12, y: 12))
+            }
+
+            // The tooltip must not interrupt hovering, tile selection, or panning.
+            override func hitTest(_ point: NSPoint) -> NSView? { nil }
         }
         override func accessibilityChildren() -> [Any]? {
             days.map { day in
@@ -162,10 +184,12 @@ struct GardenSceneView: NSViewRepresentable {
             override func accessibilityPerformPress() -> Bool { press?(); return true }
         }
         override func mouseDown(with event: NSEvent) {
+            hideHover()
             start = convert(event.locationInWindow, from: nil)
             dragged = false
         }
         override func mouseDragged(with event: NSEvent) {
+            hideHover()
             guard let previous = start else { return }
             let location = convert(event.locationInWindow, from: nil)
             if hypot(location.x - previous.x, location.y - previous.y) > 2 { dragged = true }
@@ -177,24 +201,17 @@ struct GardenSceneView: NSViewRepresentable {
             }
         }
         override func scrollWheel(with event: NSEvent) {
+            hideHover()
             changeZoom?(min(4, max(1, zoom * exp(Double(event.scrollingDeltaY) * 0.015))))
         }
         override func magnify(with event: NSEvent) {
+            hideHover()
             changeZoom?(min(4, max(1, zoom * (1 + Double(event.magnification)))))
         }
         override func mouseUp(with event: NSEvent) {
             guard !dragged else { return }
             let location = convert(event.locationInWindow, from: nil)
-            for hit in hitTest(location, options: [.searchMode: SCNHitTestSearchMode.all.rawValue]) {
-                var node: SCNNode? = hit.node
-                while let current = node {
-                    if let name = current.name, name.hasPrefix("day-"), let timestamp = Double(name.dropFirst(4)) {
-                        select?(Date(timeIntervalSince1970: timestamp))
-                        return
-                    }
-                    node = current.parent
-                }
-            }
+            if let day = day(at: location) { select?(day.date) }
         }
     }
 }
@@ -296,7 +313,7 @@ struct GardenSceneView: NSViewRepresentable {
             let trees = day.trees
             let hasHive = day.hasHive
             let hasFox = day.hasFox
-            let seed = week.index * 7 + row
+            let seed = day.plantingSeed
             let patch = SCNNode()
             patch.name = day.isInRange ? "day-\(day.date.timeIntervalSince1970)" : "future-day"
             patch.position = SCNVector3(Float(row - 3) * 1.06, 0, (Float(week.index) - centerRow) * 1.06)
@@ -326,7 +343,8 @@ struct GardenSceneView: NSViewRepresentable {
             }
             for index in 0..<bushes {
                 let bush = model(index == 0 ? "plant_bushDetailed" : "plant_bushSmall", height: 0.25)
-                bush.position = SCNVector3(-0.25, 0, -0.25)
+                bush.position = index == 0 ? SCNVector3(-0.28, 0, 0.12) : SCNVector3(0.28, 0, 0.22)
+                bush.eulerAngles.y = CGFloat(seed % 6)
                 patch.addChildNode(bush)
                 if day.hasBerries {
                     for berry in 0..<5 {
@@ -338,9 +356,12 @@ struct GardenSceneView: NSViewRepresentable {
                 }
             }
             for index in 0..<trees {
-                let tree = model((seed + index) % 2 == 0 ? "tree_oak" : "tree_pineRoundA", height: day.duration >= 14_400 ? 1.55 : 1.20)
+                let height = (index == 0 ? Float(1.25) : 1.0) + Float((seed / 5 + index) % 4) * 0.08
+                let tree = model((seed + index) % 2 == 0 ? "tree_oak" : "tree_pineRoundA", height: height)
                 tree.name = "forest-tree"
-                tree.position = SCNVector3(0.24, 0, -0.24)
+                let positions = [SCNVector3(0.24, 0, -0.24), SCNVector3(-0.27, 0, -0.20), SCNVector3(0.04, 0, 0.25)]
+                tree.position = positions[index]
+                tree.eulerAngles.y = CGFloat((seed + index * 3) % 8) * .pi / 4
                 patch.addChildNode(tree)
             }
             if flowers >= 5 && !hasFox {
@@ -374,7 +395,7 @@ struct GardenSceneView: NSViewRepresentable {
                 fox.name = "forest-fox"
                 fox.scale = SCNVector3(0.5, 0.5, 0.5)
                 fox.position = SCNVector3(-0.22, 0, 0.22)
-                fox.eulerAngles.y = CGFloat(week.index % 3) * 0.5
+                fox.eulerAngles.y = CGFloat(seed % 3) * 0.5
                 patch.addChildNode(fox)
                 if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
                     let stroll = SCNAction.customAction(duration: 12 + Double(seed % 4)) { node, elapsed in

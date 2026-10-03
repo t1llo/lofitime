@@ -16,12 +16,12 @@ struct StudioView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.white.opacity(0.08)))
                         .padding(16).padding(.top, 12)
+                } else if model.section == .sessions {
+                    SessionsView(model: model)
+                        .padding(.top, 28)
                 } else {
                     ScrollView {
-                        Group {
-                            if model.section == .sessions { SessionsView(model: model) }
-                            else { PreferencesView(model: model) }
-                        }.padding(20).padding(.top, 20)
+                        PreferencesView(model: model).padding(20).padding(.top, 20)
                     }.scrollIndicators(.hidden)
                 }
             }.frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -9,7 +9,7 @@ struct MenuBarView: View {
 
     var body: some View {
         VideoFocusScene(model: model, presentation: .menuBar, openStudio: {
-            model.section = .studio
+            model.section = .settings
             openWindow(id: "studio")
             NSApp.activate(ignoringOtherApps: true)
         })

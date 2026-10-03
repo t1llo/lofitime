@@ -17,17 +17,17 @@ public struct ActivityDay: Identifiable, Sendable {
     public var level: Int {
         switch duration {
         case ...0: 0
-        case ...1_500: 1
-        case ...3_000: 2
-        case ...6_000: 3
+        case ...300: 1
+        case ...900: 2
+        case ...1_800: 3
         default: 4
         }
     }
 }
 
-/// Five complete Sunday-first rows, including the current calendar week.
+/// Three complete Sunday-first rows, including the current calendar week.
 public struct FocusActivity: Sendable {
-    public static let historyWeeks = 5
+    public static let historyWeeks = 3
     public static let historyDays = historyWeeks * 7
     public let weeks: [[ActivityDay]]
     public let startDate: Date

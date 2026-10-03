@@ -62,10 +62,6 @@ enum DebugTools {
                     }
                     try await render(MenuBarView(model: model), to: directory.appendingPathComponent("menu-bar.png"))
                     model.section = .studio
-                    try await render(VideoFocusScene(model: model, presentation: .menuBar, showingSettings: true)
-                        .frame(width: MenuBarView.size.width, height: MenuBarView.size.height)
-                        .environment(\.roomTheme, model.preferences.appearance.palette).preferredColorScheme(.dark),
-                                     to: directory.appendingPathComponent("menu-bar-settings.png"))
                     for station in [RadioStation.sleepy, .house] {
                         model.player.select(station)
                         try await render(MenuBarView(model: model), to: directory.appendingPathComponent("menu-bar-\(station.rawValue).png"))
@@ -182,15 +178,14 @@ enum DebugTools {
             }
         }
         print("PASS: a completed focus session grows a flower; bundled CC0 garden meshes load correctly")
-        let forest = FocusActivity(records: [SessionRecord(finishedAt: model.activity.endDate, duration: 18_000, intention: "Forest diagnostic")], through: Date())
+        let forest = FocusActivity(records: [SessionRecord(finishedAt: model.activity.endDate, duration: 3_300, intention: "Forest diagnostic")], through: Date())
         let forestScene = GardenBuilder.scene(weeks: forest.gardenWeeks)
-        guard forestScene.rootNode.childNodes.filter({ $0.name?.hasPrefix("day-") == true || $0.name == "future-day" }).count == 35,
+        guard forestScene.rootNode.childNodes.filter({ $0.name?.hasPrefix("day-") == true || $0.name == "future-day" }).count == FocusActivity.historyDays,
               let tree = forestScene.rootNode.childNode(withName: "forest-tree", recursively: true),
               let fox = forestScene.rootNode.childNode(withName: "forest-fox", recursively: true),
               let bee = forestScene.rootNode.childNode(withName: "forest-bee", recursively: true),
-              tree.boundingBox.max.y * tree.scale.y > 1.4,
-              let sound = ForestAmbience.makeSound(), abs(sound.duration - 12) < 0.1 else {
-            smokeFailure("Daily forest tiles, tall trees, wildlife, or synthesized audio did not load"); return
+               tree.boundingBox.max.y * tree.scale.y > 1.2 else {
+            smokeFailure("Daily forest tiles, tall trees, or wildlife did not load after a short session"); return
         }
         if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
             guard fox.hasActions, bee.hasActions else {
@@ -209,7 +204,7 @@ enum DebugTools {
             smokeFailure("Forest camera did not fit or zoom correctly"); return
         }
         map.scene = nil
-        print("PASS: five full weeks fit the panel; tall trees, animated foxes/bees, 3× zoom, and 12-second forest audio load")
+        print("PASS: three full weeks fit the panel; tall trees, animated foxes/bees, and 3× zoom load")
 
         model.selectMode(.focus)
         model.banner = nil
@@ -561,34 +556,59 @@ enum DebugTools {
         guard await click("navigation-Activity", in: window), model.section == .sessions else {
             smokeFailure("Clicking Activity in the studio sidebar did not open it"); return
         }
-        guard accessibilityElement("activity-session-heading", in: window) != nil,
+        guard accessibilityElement("activity-forest", in: window) != nil,
+              accessibilityElement("activity-session-heading", in: window) == nil else {
+            smokeFailure("Activity did not open the full-pane forest"); return
+        }
+        func garden(in view: NSView?) -> GardenSceneView.GardenView? {
+            guard let view else { return nil }
+            if let garden = view as? GardenSceneView.GardenView { return garden }
+            return view.subviews.compactMap { garden(in: $0) }.first
+        }
+        guard let forest = garden(in: window.contentView), forest.bounds.height > 400 else {
+            smokeFailure("The forest did not fill the Activity pane"); return
+        }
+        // Hover must reveal totals without selecting the day or opening its sessions.
+        for date in [model.activity.endDate, model.activity.startDate] {
+            guard let patch = forest.scene?.rootNode.childNode(withName: "day-\(date.timeIntervalSince1970)", recursively: false),
+                  let day = forest.days.first(where: { $0.date == date }) else {
+                smokeFailure("The forest is missing a calendar day"); return
+            }
+            let projected = forest.projectPoint(patch.convertPosition(SCNVector3(0, 0.015, 0.3), to: nil))
+            let location = NSPoint(x: projected.x, y: projected.y)
+            guard forest.day(at: location)?.date == date,
+                  let event = NSEvent.mouseEvent(with: .mouseMoved, location: forest.convert(location, to: nil),
+                      modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                      windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 0, pressure: 0) else {
+                smokeFailure("Hover hit-testing did not find the correct forest day"); return
+            }
+            forest.mouseMoved(with: event)
+            guard textFields(in: forest).contains(where: { $0.stringValue == "\(SessionDuration.summary(day.duration)) focused" }),
+                  forest.subviews.contains(where: { $0 is GardenSceneView.GardenView.HoverCard && !$0.isHidden }),
+                  accessibilityElement("activity-session-heading", in: window) == nil else {
+                smokeFailure("Hover did not immediately show daily focus time without selecting"); return
+            }
+            forest.mouseExited(with: event)
+            guard forest.subviews.filter({ $0 is GardenSceneView.GardenView.HoverCard }).allSatisfy(\.isHidden) else {
+                smokeFailure("The forest hover tooltip stayed visible after leaving"); return
+            }
+        }
+        print("PASS: forest hover shows totals for focused and empty days without clicking")
+        guard await click("activity-day-\(model.activity.endDate.timeIntervalSince1970)", in: window),
+              accessibilityElement("activity-session-heading", in: window) != nil,
               let record = model.records.first,
               accessibilityElement("session-record-\(record.id)", in: window) != nil else {
-            smokeFailure("Activity did not display the completed focus session"); return
+            smokeFailure("Clicking today's garden day did not reveal its sessions"); return
         }
-        func scrollViews(in view: NSView) -> [NSScrollView] {
-            (view as? NSScrollView).map { [$0] } ?? view.subviews.flatMap { scrollViews(in: $0) }
-        }
-        if let content = window.contentView,
-           let scroll = scrollViews(in: content).first(where: { $0.bounds.width > 300 }),
-           let document = scroll.documentView {
-            scroll.contentView.scroll(to: NSPoint(x: 0, y: min(220, max(0, document.bounds.height - scroll.contentView.bounds.height))))
-            scroll.reflectScrolledClipView(scroll.contentView)
-            try? await Task.sleep(for: .milliseconds(300))
-        }
-        guard await click("activity-day-\(model.activity.endDate.timeIntervalSince1970)", in: window),
-              accessibilityElement("activity-show-all", in: window) != nil else {
-            smokeFailure("Clicking today's garden day did not filter the sessions"); return
-        }
-        guard await click("activity-show-all", in: window),
-              accessibilityElement("activity-show-all", in: window) == nil else {
-            smokeFailure("Activity's Show all button did not clear the date filter"); return
+        guard await click("activity-close-details", in: window),
+              accessibilityElement("activity-session-heading", in: window) == nil else {
+            smokeFailure("Activity's Close button did not return to the full forest"); return
         }
         guard await click("navigation-Settings", in: window), model.section == .settings,
               await click("navigation-Studio", in: window), model.section == .studio else {
             smokeFailure("The studio sidebar could not switch between Settings and Studio"); return
         }
-        print("PASS: real sidebar clicks open Activity, show completed sessions, filter days, and return to Studio")
+        print("PASS: real sidebar clicks open the full-pane forest, reveal a day's sessions, and return to Studio")
     }
 
     @MainActor private static func accessibilityElement(_ identifier: String, in root: AnyObject) -> AnyObject? {
@@ -630,16 +650,14 @@ enum DebugTools {
     @MainActor private static func renderActivityExample(to url: URL) async throws {
         let now = Date()
         let calendar = Calendar.current
-        let records = (0..<FocusActivity.historyDays).flatMap { offset -> [SessionRecord] in
-            let count = (offset * 7 + offset / 9) % 6
+        let records = (0..<FocusActivity.historyDays).compactMap { offset -> SessionRecord? in
+            let duration = [1_200, 900, 1_200, 0, 1_800, 1_200, 3_300][offset % 7]
             let date = calendar.date(byAdding: .day, value: -offset, to: now)!
-            return (0..<count).map { _ in SessionRecord(finishedAt: date, duration: 1_500, intention: "Example session") }
+            return duration > 0 ? SessionRecord(finishedAt: date, duration: Double(duration), intention: "Example session") : nil
         }
         try await render(
-            VStack(alignment: .leading, spacing: 20) {
-                Text("Focus activity · example data").font(.room(size: 20, weight: .medium))
-                FocusGarden(activity: FocusActivity(records: records, through: now), selectedDay: .constant(nil))
-            }.padding(28).frame(width: 520)
+            FocusGarden(activity: FocusActivity(records: records, through: now), selectedDay: .constant(nil))
+                .frame(width: 555, height: 512)
                 .foregroundStyle(RoomTheme.candlelight.text).background(RoomTheme.candlelight.background)
                 .environment(\.roomTheme, .candlelight).preferredColorScheme(.dark), to: url)
     }

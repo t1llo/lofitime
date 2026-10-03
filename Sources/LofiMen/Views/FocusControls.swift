@@ -19,8 +19,8 @@ struct FocusControls: View {
                         editing = false
                         model.selectMode(mode)
                     } label: {
-                        Text(mode.title).font(.room(size: 10, weight: compact ? .semibold : .medium))
-                            .frame(maxWidth: .infinity).frame(height: compact ? 25 : 29)
+                        Text(mode.title).font(.room(size: compact ? 12 : 13, weight: .semibold))
+                            .frame(maxWidth: .infinity).frame(height: compact ? 34 : 40)
                             .foregroundStyle(model.timer.mode == mode ? theme.text : theme.text.opacity(compact ? 0.82 : 0.55))
                             .background(model.timer.mode == mode ? theme.accent.opacity(0.2) : .clear,
                                         in: RoundedRectangle(cornerRadius: 7))
@@ -48,8 +48,10 @@ struct FocusControls: View {
                 .foregroundStyle(theme.text).frame(height: compact ? 62 : 83)
                 .shadow(color: .black.opacity(0.2), radius: 12, y: 3)
 
-                Text(caption).font(.room(size: compact ? 10 : 9)).foregroundStyle(valid || model.timer.status == .running ? theme.text.opacity(compact ? 0.85 : 0.75) : theme.amber)
-                    .frame(height: compact ? 14 : 17)
+                if !valid && !input.isEmpty && model.timer.status != .running {
+                    Text("Use minutes or mm:ss, from 0:01 to 180:00")
+                        .font(.room(size: 10)).foregroundStyle(theme.amber)
+                }
             }
 
             HStack(spacing: 9) {
@@ -74,12 +76,6 @@ struct FocusControls: View {
             if !focused { model.applyDurationInput() }
         }
         .onDisappear { if editing { model.applyDurationInput() } }
-    }
-
-    private var caption: String {
-        if model.timer.status == .running { return "\(model.timer.mode.title) · session \(model.cycleNumber) of \(model.preferences.timer.cycleLength)" }
-        if !valid && !input.isEmpty { return "Use minutes or mm:ss, from 0:01 to 180:00" }
-        return editing ? "Return to set · e.g. 45 or 25:30" : "Type your time above · minutes or mm:ss"
     }
 
     private func toggleTimer() {

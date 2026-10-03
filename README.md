@@ -25,7 +25,7 @@ Requires **macOS 14 or later**. Open the DMG and drag **Lofitime.app** into **Ap
 
 - **Live lo-fi radio:** Chill house (default), Study lo-fi, Sleepy lo-fi, and Synthwave.
 - **Focus timers:** customizable Pomodoro cycles and editable countdowns.
-- **Focus forest:** five full weeks of daily squares grow flowers, tall trees, and animated wildlife with more focus time. Zoom closer for soft forest sounds, or mute them. Session history stays saved locally.
+- **Focus forest:** short sessions grow a varied forest of flowers, tall trees, and animated wildlife across three weeks of daily squares. Hover for daily focus time, click for sessions, and scroll or pinch to zoom. Planting stays consistent and session history stays saved locally.
 - **Native macOS:** a compact studio, menu-bar player, two themes, and completion notifications.
 - **Convenience:** launch at login, automatic updates, and optional automatic breaks.
 - **Video quality:** choose an available resolution through YouTube's player in Settings.
