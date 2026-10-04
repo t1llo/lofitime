@@ -50,7 +50,8 @@ struct GardenSceneView: NSViewRepresentable {
             view.backgroundColor = NSColor(theme.background)
             view.scene = GardenBuilder.scene(weeks: weeks, theme: theme)
             view.pointOfView = view.scene?.rootNode.childNode(withName: "camera", recursively: false)
-            view.isPlaying = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion && weeks.flatMap(\.days).contains { $0.hasHive || $0.hasFox }
+            view.hasAnimation = weeks.flatMap(\.days).contains { $0.hasHive || $0.hasFox }
+            view.updateAnimation()
         }
         view.zoom = zoom
         view.weekCount = weeks.count
@@ -62,12 +63,51 @@ struct GardenSceneView: NSViewRepresentable {
     }
 
     static func dismantleNSView(_ view: GardenView, coordinator: ()) {
+        view.stopObservingWindow()
         view.isPlaying = false
         view.scene = nil
     }
 
     final class GardenView: SCNView {
         var signature = ""
+        var hasAnimation = false
+        private var windowObservers: [NSObjectProtocol] = []
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            stopObservingWindow()
+            if let window {
+                windowObservers.append(NotificationCenter.default.addObserver(
+                    forName: NSWindow.didChangeOcclusionStateNotification, object: window, queue: .main
+                ) { [weak self] _ in
+                    Task { @MainActor in self?.updateAnimation() }
+                })
+            }
+            updateAnimation()
+        }
+
+        override func viewDidHide() {
+            super.viewDidHide()
+            updateAnimation()
+        }
+
+        override func viewDidUnhide() {
+            super.viewDidUnhide()
+            updateAnimation()
+        }
+
+        func updateAnimation() {
+            let visible = window?.occlusionState.contains(.visible) == true && !isHiddenOrHasHiddenAncestor
+            isPlaying = hasAnimation && visible && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        }
+
+        func stopObservingWindow() {
+            windowObservers.forEach(NotificationCenter.default.removeObserver)
+            windowObservers = []
+        }
+
+        deinit { windowObservers.forEach(NotificationCenter.default.removeObserver) }
+
         var select: ((Date) -> Void)?
         var changeZoom: ((Double) -> Void)?
         var zoom = 1.0

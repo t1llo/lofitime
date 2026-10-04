@@ -34,6 +34,7 @@ final class VideoSurfaceRouter {
     private var surfaces: [WeakSurface] = []
     private(set) weak var activeSurface: VideoSurfaceView?
     private(set) var isInteractive = false
+    private(set) var isVideoVisible = false
 
     init(webView: WKWebView) { self.webView = webView }
 
@@ -51,10 +52,15 @@ final class VideoSurfaceRouter {
     func refresh() {
         surfaces.removeAll { $0.value == nil }
         let visible = surfaces.compactMap(\.value).filter {
-            $0.window?.isVisible == true && $0.window?.isMiniaturized != true && !$0.isHiddenOrHasHiddenAncestor
+            $0.window?.isVisible == true && $0.window?.occlusionState.contains(.visible) == true
+                && $0.window?.isMiniaturized != true && !$0.isHiddenOrHasHiddenAncestor
         }
         guard let destination = visible.max(by: { $0.presentation.rawValue < $1.presentation.rawValue }) else {
-            // Leave the player attached to its current host for background audio.
+            // Keep audio attached, but don't retain a full-window rendering surface
+            // when every host is closed, minimized or covered by other windows.
+            isVideoVisible = false
+            webView.frame = CGRect(x: 0, y: 0, width: 320, height: 180)
+            setInteractive(false)
             return
         }
         if webView.superview !== destination {
@@ -62,8 +68,12 @@ final class VideoSurfaceRouter {
             destination.addSubview(webView)
             activeSurface = destination
         }
+        isVideoVisible = true
         destination.layoutPlayer(webView)
-        let interactive = !destination.fillsBounds
+        setInteractive(!destination.fillsBounds)
+    }
+
+    private func setInteractive(_ interactive: Bool) {
         if isInteractive != interactive {
             isInteractive = interactive
             webView.evaluateJavaScript("radioInteractive(\(interactive))", completionHandler: nil)
@@ -110,13 +120,23 @@ final class VideoSurfaceView: NSView {
         scheduleRefresh()
     }
 
+    override func viewDidHide() {
+        super.viewDidHide()
+        scheduleRefresh()
+    }
+
+    override func viewDidUnhide() {
+        super.viewDidUnhide()
+        scheduleRefresh()
+    }
+
     override func layout() {
         super.layout()
         if let webView = subviews.first as? WKWebView { layoutPlayer(webView) }
     }
 
     func layoutPlayer(_ webView: WKWebView) {
-        guard webView.superview === self else { return }
+        guard webView.superview === self, router?.isVideoVisible == true else { return }
         let frame = VideoGeometry.playerFrame(in: bounds.size, fill: fillsBounds, focalPoint: focalPoint, presentation: presentation)
         if webView.frame != frame { webView.frame = frame }
     }
@@ -163,8 +183,10 @@ struct VideoBackdrop: View {
             Color.black.overlay(alignment: .topLeading) {
                 artwork(in: geometry.size)
             }.overlay {
-                RadioWebView(player: player, presentation: presentation, fillsBounds: fillsBounds)
-                    .allowsHitTesting(!fillsBounds)
+                if player.hasLoaded {
+                    RadioWebView(player: player, presentation: presentation, fillsBounds: fillsBounds)
+                        .allowsHitTesting(!fillsBounds)
+                }
             }.overlay(alignment: .topLeading) {
                 // Paused/loading players can show centered YouTube overlays. Cover those
                 // with station artwork while keeping the live WebView mounted underneath.

@@ -1,4 +1,6 @@
 import AppKit
+import Observation
+import os
 import LofiMenCore
 import SwiftUI
 import SceneKit
@@ -11,6 +13,7 @@ enum DebugTools {
     static var requested: Bool {
         #if DEBUG
         CommandLine.arguments.contains("--render-preview") || CommandLine.arguments.contains("--smoke-test")
+            || CommandLine.arguments.contains("--performance-test")
         #else
         false
         #endif
@@ -79,6 +82,8 @@ enum DebugTools {
                     exit(1)
                 }
             }
+        } else if CommandLine.arguments.contains("--performance-test") {
+            Task { @MainActor in await smokePerformance(model) }
         } else if CommandLine.arguments.contains("--smoke-test") {
             Task { @MainActor in await smoke(model) }
         }
@@ -125,7 +130,62 @@ enum DebugTools {
         try data.write(to: url)
     }
 
+    /// Isolates background resource checks from other stations' availability and quality menus.
+    @MainActor private static func smokePerformance(_ model: AppModel) async {
+        let idleTime = model.now
+        try? await Task.sleep(for: .seconds(2))
+        guard model.now == idleTime, !model.player.hasLoaded else {
+            smokeFailure("Idle app polled or loaded the player"); return
+        }
+        func startPlayback() async -> Bool {
+            model.player.volume = 0
+            model.player.play()
+            for _ in 0..<60 {
+                try? await Task.sleep(for: .milliseconds(500))
+                if model.player.isPlaying { model.player.volume = 0.01; return true }
+                if model.player.error != nil { return false }
+            }
+            return false
+        }
+        guard await startPlayback(), let window = NSApp.windows.first(where: { $0.title == "Lofitime" }) else {
+            smokeFailure("Performance test could not start radio: \(model.player.error ?? "no playing state")"); return
+        }
+        window.orderOut(nil)
+        try? await Task.sleep(for: .seconds(1))
+        let start = try? await model.player.webView.evaluateJavaScript("player.getCurrentTime()") as? Double
+        try? await Task.sleep(for: .seconds(6))
+        let end = try? await model.player.webView.evaluateJavaScript("player.getCurrentTime()") as? Double
+        guard let start, let end, end - start >= 5, model.player.isPlaying,
+              !model.player.surfaces.isVideoVisible,
+              model.player.webView.frame.size == CGSize(width: 320, height: 180) else {
+            smokeFailure("Background playback or reduced video surface failed"); return
+        }
+        print("PASS: audio advances with the window hidden and the video surface reduced")
+        fflush(stdout)
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        try? await Task.sleep(for: .seconds(1))
+        guard model.player.surfaces.isVideoVisible, model.player.webView.frame.width > 320 else {
+            smokeFailure("Visible video size did not recover"); return
+        }
+        model.player.pause()
+        try? await Task.sleep(for: .seconds(6))
+        guard !model.player.isPlaying, model.now == idleTime else {
+            smokeFailure("Paused radio resumed or idle timer kept polling"); return
+        }
+        guard await startPlayback() else { smokeFailure("Radio did not resume after pausing"); return }
+        model.player.pause()
+        print("PASS: idle timer sleeps and radio pauses and resumes")
+        exit(0)
+    }
+
     @MainActor private static func smoke(_ model: AppModel) async {
+        let idleTime = model.now
+        try? await Task.sleep(for: .milliseconds(1_200))
+        guard model.now == idleTime, !model.player.hasLoaded else {
+            smokeFailure("An idle app refreshed its countdown or loaded the player"); return
+        }
+        print("PASS: idle timer does not poll and radio stays unloaded before first play")
         let labelSizes = ["00:00", "01:11", "09:59", "10:00", "59:59", "180:00"].flatMap { text in
             [false, true].map { MenuBarLabel.image(countdown: text, paused: $0).size }
         }
@@ -151,6 +211,12 @@ enum DebugTools {
         print("PASS: exact duration and theme changes preserve the timer")
         model.toggleTimer()
         guard model.timer.status == .running else { smokeFailure("Timer did not start"); return }
+        let timerInvalidated = OSAllocatedUnfairLock(initialState: false)
+        withObservationTracking { _ = model.timer.status } onChange: { timerInvalidated.withLock { $0 = true } }
+        model.tick()
+        guard !timerInvalidated.withLock({ $0 }) else {
+            smokeFailure("A countdown tick invalidated unchanged timer state"); return
+        }
         model.toggleTimer()
         guard model.timer.status == .paused else { smokeFailure("Timer did not pause"); return }
         model.selectMode(.shortBreak)
@@ -164,7 +230,8 @@ enum DebugTools {
         try? await Task.sleep(for: .milliseconds(1_200))
         model.tick()
         guard model.records.count == 1, model.records.first?.duration == 1,
-              model.activity.totalSessions == 1, model.activity.activeDays == 1 else {
+              model.activity.totalSessions == 1, model.activity.activeDays == 1,
+              model.todayRecords.count == 1, model.todayDuration == 1 else {
             smokeFailure("A completed exact-duration session did not update activity")
             return
         }
@@ -203,6 +270,10 @@ enum DebugTools {
         guard fitted > 0, abs((map.pointOfView?.camera?.orthographicScale ?? 0) * 3 - fitted) < 0.01 else {
             smokeFailure("Forest camera did not fit or zoom correctly"); return
         }
+        map.hasAnimation = true
+        map.isPlaying = true
+        map.updateAnimation()
+        guard !map.isPlaying else { smokeFailure("An offscreen garden kept animating"); return }
         map.scene = nil
         print("PASS: three full weeks fit the panel; tall trees, animated foxes/bees, and 3× zoom load")
 
@@ -393,6 +464,10 @@ enum DebugTools {
         let backgroundMarker = UUID().uuidString
         _ = try? await model.player.webView.evaluateJavaScript("window.backgroundMarker = '\(backgroundMarker)'")
         try? await Task.sleep(for: .seconds(backgroundSeconds))
+        guard !model.player.surfaces.isVideoVisible,
+              model.player.webView.frame.size == CGSize(width: 320, height: 180) else {
+            smokeFailure("The background player retained a full-size video surface"); return
+        }
         let background = try? await model.player.webView.evaluateJavaScript("player.getPlayerState()")
         let finalPosition = try? await model.player.webView.evaluateJavaScript("player.getCurrentTime()") as? Double
         let retainedMarker = try? await model.player.webView.evaluateJavaScript("window.backgroundMarker")

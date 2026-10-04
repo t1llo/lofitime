@@ -113,7 +113,7 @@ final class RadioPlayer: NSObject, WKNavigationDelegate {
         }
     }
 
-    @ObservationIgnored let webView: WKWebView
+    @ObservationIgnored lazy var webView: WKWebView = makeWebView()
     @ObservationIgnored lazy var surfaces = VideoSurfaceRouter(webView: webView)
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var wantsPlayback = false {
@@ -136,6 +136,10 @@ final class RadioPlayer: NSObject, WKNavigationDelegate {
         self.defaults = defaults
         station = RadioStation(rawValue: defaults.string(forKey: "radio.station") ?? "") ?? .defaultStation
         volume = defaults.object(forKey: "radio.volume") as? Double ?? 0.6
+        super.init()
+    }
+
+    private func makeWebView() -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.mediaTypesRequiringUserActionForPlayback = []
         configuration.allowsAirPlayForMediaPlayback = true
@@ -194,13 +198,13 @@ final class RadioPlayer: NSObject, WKNavigationDelegate {
                 """, injectionTime: .atDocumentEnd, forMainFrameOnly: false))
         }
         #endif
-        webView = WKWebView(frame: .zero, configuration: configuration)
-        super.init()
+        let webView = WKWebView(frame: .zero, configuration: configuration)
         handler.player = self
         webView.navigationDelegate = self
         webView.setValue(false, forKey: "drawsBackground")
         webView.allowsBackForwardNavigationGestures = false
         webView.isInspectable = _isDebugAssertConfiguration()
+        return webView
     }
 
     var statusText: String {
@@ -237,11 +241,14 @@ final class RadioPlayer: NSObject, WKNavigationDelegate {
         pause()
         self.station = station
         defaults.set(station.rawValue, forKey: "radio.station")
+        // Selecting artwork before first playback should not launch WebKit.
+        if hasLoaded {
+            webView.loadHTMLString("<html style='background:transparent'></html>", baseURL: nil)
+        }
         hasLoaded = false
         isReady = false
         error = nil
         loadID = UUID().uuidString
-        webView.loadHTMLString("<html style='background:transparent'></html>", baseURL: nil)
         if resume { play() }
     }
 

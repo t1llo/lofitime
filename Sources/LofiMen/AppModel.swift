@@ -41,6 +41,8 @@ final class AppModel {
     var durationInput: String?
     private(set) var records: [SessionRecord]
     private(set) var activity: FocusActivity
+    private(set) var todayRecords: [SessionRecord]
+    private(set) var todayDuration: TimeInterval
     var intention: String { didSet { saveSession() } }
     private(set) var now = Date()
     var banner: String?
@@ -65,12 +67,10 @@ final class AppModel {
         records = archive?.records ?? []
         activity = FocusActivity(records: archive?.records ?? [], through: Date())
         intention = archive?.intention ?? ""
+        let today = (archive?.records ?? []).filter { Calendar.current.isDateInToday($0.finishedAt) }
+        todayRecords = today
+        todayDuration = today.reduce(0) { $0 + $1.duration }
 
-        let ticker = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.tick() }
-        }
-        self.ticker = ticker
-        RunLoop.main.add(ticker, forMode: .common)
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
@@ -88,10 +88,6 @@ final class AppModel {
     }
 
     var progress: Double { timer.progress(at: now) }
-    var todayRecords: [SessionRecord] {
-        records.filter { Calendar.current.isDate($0.finishedAt, inSameDayAs: now) }
-    }
-    var todayDuration: TimeInterval { todayRecords.reduce(0) { $0 + $1.duration } }
     var cycleNumber: Int { min(timer.completedInCycle + 1, preferences.timer.cycleLength) }
     var timerActionTitle: String {
         switch timer.status {
@@ -153,11 +149,16 @@ final class AppModel {
     }
 
     func tick() {
-        let previousDay = Calendar.current.startOfDay(for: now)
+        defer { scheduleTick() }
+        let previousDay = activity.endDate
         now = Date()
         if Calendar.current.startOfDay(for: now) != previousDay {
             activity = FocusActivity(records: records, through: now)
+            refreshToday()
         }
+        // Calling a mutating method on an observable property invalidates its
+        // readers even when the method does nothing. Only mutate at the deadline.
+        guard timer.status == .running, let deadline = timer.deadline, now >= deadline else { return }
         guard let completion = timer.tick(
             at: now, configuration: preferences.timer,
             autoStartBreaks: preferences.autoStartBreaks,
@@ -172,6 +173,7 @@ final class AppModel {
                     ? "Focus session" : intention.trimmingCharacters(in: .whitespacesAndNewlines)
             ), at: 0)
             activity = FocusActivity(records: records, through: now)
+            refreshToday()
         }
         let message = completion.mode == .focus
             ? "Session complete. Time for a break."
@@ -235,7 +237,39 @@ final class AppModel {
         UNUserNotificationCenter.current().add(request)
     }
 
+    private func refreshToday() {
+        todayRecords = records.filter { Calendar.current.isDate($0.finishedAt, inSameDayAs: now) }
+        todayDuration = todayRecords.reduce(0) { $0 + $1.duration }
+    }
+
+    private func scheduleTick() {
+        ticker?.invalidate()
+        let date = Date()
+        let nextDay = Calendar.current.date(byAdding: .day, value: 1,
+                                           to: Calendar.current.startOfDay(for: date))!
+        let fireDate: Date
+        if timer.status == .running, let deadline = timer.deadline {
+            fireDate = min(date.addingTimeInterval(1), deadline, nextDay)
+        } else {
+            // Ready and paused timers need no countdown work; refresh at midnight.
+            fireDate = nextDay
+        }
+        let ticker = Timer(fire: fireDate, interval: 0, repeats: false) { [weak self] _ in
+            Task { @MainActor in self?.tick() }
+        }
+        ticker.tolerance = 0.1
+        self.ticker = ticker
+        RunLoop.main.add(ticker, forMode: .common)
+    }
+
+    deinit {
+        ticker?.invalidate()
+        if let wakeObserver { NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver) }
+        notificationRequest?.cancel()
+    }
+
     private func saveSession() {
+        scheduleTick()
         let archive = SessionArchive(timer: timer, records: records, intention: intention)
         if let data = try? JSONEncoder().encode(archive) { defaults.set(data, forKey: "session.v1") }
     }
