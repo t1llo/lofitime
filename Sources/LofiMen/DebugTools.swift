@@ -66,6 +66,8 @@ enum DebugTools {
                                                     size: CGSize(width: 700, height: 540))
                     try await renderActivityExample(to: directory.appendingPathComponent("activity-desktop.png"), appearance: .candlelight,
                                                     size: CGSize(width: 700, height: 540), showStats: true)
+                    try await renderActivityExample(to: directory.appendingPathComponent("activity-stats-small.png"), appearance: .candlelight,
+                                                    size: CGSize(width: 660, height: 500), showStats: true)
                     for minutes in [0, 25, 120, 360, 720] {
                         let now = Date()
                         let records = [SessionRecord(finishedAt: now, duration: Double(minutes) * 60, intention: "Preview")]
@@ -961,7 +963,7 @@ enum DebugTools {
         model.section = .sessions
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 700, height: 740), styleMask: [.titled], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
-        window.contentView = NSHostingView(rootView: StudioView(model: model).frame(width: 700, height: 740))
+        window.contentView = NSHostingView(rootView: StudioView(model: model))
         window.center()
         window.makeKeyAndOrderFront(nil)
         defer { window.close() }
@@ -971,8 +973,14 @@ enum DebugTools {
         let scene = room.scene
         let camera = room.cameraState
         guard await click("activity-view-stats", in: window) else { return }
+        if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            guard room.isTransitioning, let node = room.pointOfView,
+                  abs(node.presentation.position.x - node.position.x) > 0.01 else {
+                smokeFailure("View stats jumped to the desktop instead of animating the camera (transitioning: \(room.isTransitioning), playing: \(room.isPlaying), paused: \(String(describing: room.scene?.isPaused)), target: \(String(describing: room.pointOfView?.position)), presentation: \(String(describing: room.pointOfView?.presentation.position)))"); return
+            }
+        }
         try? await Task.sleep(for: .milliseconds(800))
-        guard room.desktopHost?.isHidden == false,
+        guard room.desktopHost?.isHidden == false, room.desktopHost?.frame == room.bounds,
               await click("activity-week-previous", in: window),
               await click("activity-week-current", in: window),
               await click("desk-stats-month", in: window),
@@ -990,6 +998,31 @@ enum DebugTools {
         guard room.cameraState == camera, room.desktopHost?.isHidden == true else {
             smokeFailure("Leaving the desktop did not restore the explored room view"); return
         }
+        // The normal stats layout must stay readable and fill the pane at the smallest size.
+        window.setContentSize(CGSize(width: 660, height: 500))
+        guard await click("activity-view-stats", in: window) else { return }
+        try? await Task.sleep(for: .milliseconds(800))
+        guard let total = accessibilityElement("activity-month-total", in: window)?.accessibilityFrame?(), total.height >= 30,
+              let footer = accessibilityElement("activity-all-time", in: window)?.accessibilityFrame?(),
+              room.bounds.contains(room.convert(window.convertFromScreen(footer), from: nil)),
+              room.desktopHost?.frame == room.bounds else {
+            smokeFailure("Stats remained scaled to the monitor or clipped in the compact window"); return
+        }
+        guard await click("activity-view-stats", in: window) else { return }
+        if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion, !room.isTransitioning {
+            smokeFailure("Back to room did not animate the camera out"); return
+        }
+        // Reverse an in-flight return; stale completions must not hide the reopened page.
+        guard await click("activity-view-stats", in: window) else { return }
+        try? await Task.sleep(for: .milliseconds(800))
+        guard room.showsStats, !room.isTransitioning, room.desktopHost?.isHidden == false,
+              await click("activity-view-stats", in: window) else {
+            smokeFailure("Quickly reversing the stats transition left a stale page"); return
+        }
+        try? await Task.sleep(for: .milliseconds(800))
+        guard room.cameraState == camera, room.desktopHost?.isHidden == true else {
+            smokeFailure("Reversing the transition lost the explored room view"); return
+        }
         window.orderOut(nil)
         try? await Task.sleep(for: .milliseconds(200))
         room.updateAnimation()
@@ -997,7 +1030,7 @@ enum DebugTools {
         guard !room.isPlaying, room.scene?.isPaused != false else {
             smokeFailure("A hidden study room continued to render (playing: \(room.isPlaying), scene paused: \(String(describing: room.scene?.isPaused)))"); return
         }
-        print("PASS: scroll zoom/drag, desk camera transition, historical desktop stats, restored room view, and hidden-window suspension work")
+        print("PASS: animated desk zoom, full-resolution stats at minimum size, quick transition reversal, history, and restored room view")
     }
 
     @MainActor private static func smokeActivityPersistence() {

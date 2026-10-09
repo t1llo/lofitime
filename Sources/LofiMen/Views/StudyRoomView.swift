@@ -20,7 +20,7 @@ struct StudyRoomView: View {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(showsStats ? "At your desk" : growth.title).font(.room(size: 14, weight: .medium))
-                    Text(showsStats ? "Your focus story, on your desktop." : "\(focusTime(growth.recentDuration)) of focus over the last 7 days")
+                    Text(showsStats ? "Your focus story, a little closer." : "\(focusTime(growth.recentDuration)) of focus over the last 7 days")
                         .font(.room(size: 10)).foregroundStyle(theme.muted)
                 }
                 Spacer(minLength: 5)
@@ -34,30 +34,34 @@ struct StudyRoomView: View {
             }.padding(.horizontal, 16).padding(.top, 15)
             StudyRoomScene(growth: growth, theme: theme, camera: $camera, showsStats: showsStats, desktop: desktop)
                 .frame(maxWidth: .infinity, minHeight: 150, maxHeight: .infinity).clipped()
-            VStack(alignment: .leading, spacing: 7) {
-                HStack(spacing: 6) {
-                    Image(systemName: growth.nextAddition == nil ? "sparkles" : "leaf").foregroundStyle(theme.activity)
-                    if let next = growth.nextAddition {
-                        Text("Next: \(next.title)").lineLimit(1)
-                        Spacer(minLength: 2)
-                        Text("\(focusTime(ceil(next.minutes - growth.minutes) * 60)) to grow").foregroundStyle(theme.muted).lineLimit(1)
-                    } else {
-                        Text("A soft place to land, made by your focus.")
-                        Spacer(minLength: 0)
-                    }
-                    Button { showsGrowth.toggle() } label: { Image(systemName: "info.circle").frame(width: 22, height: 22) }
-                        .buttonStyle(.plain).foregroundStyle(theme.muted).accessibilityLabel("How your room grows")
-                        .popover(isPresented: $showsGrowth) { growthGuide }
-                }.font(.room(size: 10))
-                GeometryReader { proxy in
-                    Capsule().fill(theme.line)
-                    Capsule().fill(theme.activity).frame(width: proxy.size.width * growth.progressToNext)
-                }.frame(height: 3).accessibilityLabel("Progress to the next room addition")
-                    .accessibilityValue("\(Int(growth.progressToNext * 100)) percent")
-                Text(showsStats ? "Explore weeks, months, and individual days on the screen." : "Scroll or pinch to zoom · Drag to explore · Double-click to reset")
-                    .font(.room(size: 9)).foregroundStyle(theme.muted).frame(maxWidth: .infinity).padding(.top, 3)
-            }.padding(.horizontal, 16).padding(.bottom, 13)
+            if !showsStats { growthFooter }
         }.roomCard()
+    }
+
+    private var growthFooter: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 6) {
+                Image(systemName: growth.nextAddition == nil ? "sparkles" : "leaf").foregroundStyle(theme.activity)
+                if let next = growth.nextAddition {
+                    Text("Next: \(next.title)").lineLimit(1)
+                    Spacer(minLength: 2)
+                    Text("\(focusTime(ceil(next.minutes - growth.minutes) * 60)) to grow").foregroundStyle(theme.muted).lineLimit(1)
+                } else {
+                    Text("A soft place to land, made by your focus.")
+                    Spacer(minLength: 0)
+                }
+                Button { showsGrowth.toggle() } label: { Image(systemName: "info.circle").frame(width: 22, height: 22) }
+                    .buttonStyle(.plain).foregroundStyle(theme.muted).accessibilityLabel("How your room grows")
+                    .popover(isPresented: $showsGrowth) { growthGuide }
+            }.font(.room(size: 10))
+            GeometryReader { proxy in
+                Capsule().fill(theme.line)
+                Capsule().fill(theme.activity).frame(width: proxy.size.width * growth.progressToNext)
+            }.frame(height: 3).accessibilityLabel("Progress to the next room addition")
+                .accessibilityValue("\(Int(growth.progressToNext * 100)) percent")
+            Text("Scroll or pinch to zoom · Drag to explore · Double-click to reset")
+                .font(.room(size: 9)).foregroundStyle(theme.muted).frame(maxWidth: .infinity).padding(.top, 3)
+        }.padding(.horizontal, 16).padding(.bottom, 13)
     }
 
     private var growthGuide: some View {

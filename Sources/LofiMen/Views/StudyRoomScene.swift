@@ -72,7 +72,7 @@ struct StudyRoomScene: NSViewRepresentable {
         override var acceptsFirstResponder: Bool { true }
 
         override func accessibilityChildren() -> [Any]? {
-            guard let desktopHost, !desktopHost.isHidden else { return [] }
+            guard showsStats, !isTransitioning, let desktopHost, !desktopHost.isHidden else { return [] }
             return [desktopHost]
         }
 
@@ -105,7 +105,6 @@ struct StudyRoomScene: NSViewRepresentable {
                 host.sizingOptions = []
                 host.isHidden = true
                 host.wantsLayer = true
-                host.layer?.cornerRadius = 4
                 host.layer?.masksToBounds = true
                 desktopHost = host
                 addSubview(host)
@@ -118,7 +117,13 @@ struct StudyRoomScene: NSViewRepresentable {
             guard value != showsStats else { return }
             showsStats = value
             dragPoint = nil
-            desktopHost?.isHidden = true
+            if let desktopHost {
+                // Cross-fade out while the camera pulls back through the monitor.
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : 0.16
+                    desktopHost.animator().alphaValue = 0
+                }
+            }
             invalidateCamera()
             fitCamera(animated: window?.isVisible == true && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
             window?.invalidateCursorRects(for: self)
@@ -129,14 +134,43 @@ struct StudyRoomScene: NSViewRepresentable {
                   fittedState != cameraState || fittedSize != bounds.size else { return }
             fittedState = cameraState
             fittedSize = bounds.size
+            let destination = SCNNode()
+            let scale: Double
+            if showsStats, let screen = scene?.rootNode.childNode(withName: "desktop-screen", recursively: true) {
+                let center = screen.convertPosition(SCNVector3(0, 0, 0.006), to: nil)
+                destination.position = SCNVector3(center.x, center.y, center.z + 1.4)
+                // Travel all the way into the screen. It covers the viewport before the
+                // native statistics page appears, so its text never needs a 3D transform.
+                scale = min(0.49, 0.84 / (bounds.width / bounds.height)) / 2.16
+            } else {
+                destination.position = SCNVector3(5.4, 4.4, 12)
+                destination.look(at: SCNVector3(0, 1.85, 0))
+                let corners = [-4.4, 4.4].flatMap { x in
+                    [-0.3, 4.25].flatMap { y in [-2.35, 2.35].map { z in destination.convertPosition(SCNVector3(x, y, z), from: nil) } }
+                }
+                let width = corners.map(\.x).max()! - corners.map(\.x).min()!
+                let height = corners.map(\.y).max()! - corners.map(\.y).min()!
+                scale = max(height / 2, width / (bounds.width / bounds.height) / 2) * 1.035 / cameraState.zoom
+                let delta = destination.convertVector(SCNVector3(cameraState.pan.width, cameraState.pan.height, 0), to: nil)
+                destination.position = SCNVector3(destination.position.x + delta.x, destination.position.y + delta.y, destination.position.z + delta.z)
+            }
+
+            // SwiftUI lays out the pane again when the room footer disappears. An empty
+            // transaction would complete immediately and pause a still-moving camera.
+            guard !SCNMatrix4EqualToMatrix4(camera.transform, destination.transform)
+                    || abs((camera.camera?.orthographicScale ?? 0) - scale) > 0.0001 else {
+                positionDesktop()
+                return
+            }
             transitionID += 1
             let id = transitionID
-            isTransitioning = animated
+            let animate = (animated || isTransitioning) && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+            isTransitioning = animate
             updateAnimation()
             SCNTransaction.begin()
-            SCNTransaction.animationDuration = animated ? 0.65 : 0
+            SCNTransaction.animationDuration = animate ? 0.8 : 0
             SCNTransaction.animationTimingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            if animated {
+            if animate {
                 SCNTransaction.completionBlock = { [weak self] in
                     Task { @MainActor in
                         guard let self, self.transitionID == id else { return }
@@ -146,23 +180,8 @@ struct StudyRoomScene: NSViewRepresentable {
                     }
                 }
             }
-            if showsStats, let screen = scene?.rootNode.childNode(withName: "desktop-screen", recursively: true) {
-                let center = screen.convertPosition(SCNVector3(0, 0, 0.006), to: nil)
-                camera.position = SCNVector3(center.x, center.y, center.z + 1.4)
-                camera.eulerAngles = SCNVector3Zero
-                camera.camera?.orthographicScale = max(0.49 / 0.76, 0.84 / (bounds.width / bounds.height) / 0.88) / 2
-            } else {
-                camera.position = SCNVector3(5.4, 4.4, 12)
-                camera.look(at: SCNVector3(0, 1.85, 0))
-                let corners = [-4.4, 4.4].flatMap { x in
-                    [-0.3, 4.25].flatMap { y in [-2.35, 2.35].map { z in camera.convertPosition(SCNVector3(x, y, z), from: nil) } }
-                }
-                let width = corners.map(\.x).max()! - corners.map(\.x).min()!
-                let height = corners.map(\.y).max()! - corners.map(\.y).min()!
-                camera.camera?.orthographicScale = max(height / 2, width / (bounds.width / bounds.height) / 2) * 1.035 / cameraState.zoom
-                let delta = camera.convertVector(SCNVector3(cameraState.pan.width, cameraState.pan.height, 0), to: nil)
-                camera.position = SCNVector3(camera.position.x + delta.x, camera.position.y + delta.y, camera.position.z + delta.z)
-            }
+            camera.transform = destination.transform
+            camera.camera?.orthographicScale = scale
             SCNTransaction.commit()
             positionDesktop()
             needsDisplay = true
@@ -170,28 +189,34 @@ struct StudyRoomScene: NSViewRepresentable {
 
         private func positionDesktop() {
             guard let host = desktopHost else { return }
-            guard showsStats, !isTransitioning,
-                  let screen = scene?.rootNode.childNode(withName: "desktop-screen", recursively: true) else {
+            host.frame = bounds
+            guard !isTransitioning else { return }
+            guard showsStats else {
                 host.isHidden = true
+                host.alphaValue = 0
                 return
             }
-            let bottomLeft = projectPoint(screen.convertPosition(SCNVector3(-0.42, -0.245, 0.006), to: nil))
-            let topRight = projectPoint(screen.convertPosition(SCNVector3(0.42, 0.245, 0.006), to: nil))
-            host.frame = NSRect(x: bottomLeft.x, y: isFlipped ? bounds.height - topRight.y : bottomLeft.y,
-                                width: topRight.x - bottomLeft.x, height: topRight.y - bottomLeft.y)
+            let appearing = host.isHidden || host.alphaValue == 0
             host.isHidden = false
+            if appearing {
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : 0.16
+                    host.animator().alphaValue = 1
+                }
+            }
         }
 
         func updateAnimation() {
             let visible = window?.isVisible == true && window?.occlusionState.contains(.visible) == true
                 && !isHiddenOrHasHiddenAncestor && !visibleRect.isEmpty
             let animate = visible && (isTransitioning || (hasAnimation && !showsStats && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion))
+            preferredFramesPerSecond = isTransitioning ? 60 : 24
             isPlaying = animate
             scene?.isPaused = !animate
         }
 
         private func change(_ state: RoomCameraState) {
-            guard !showsStats else { return }
+            guard !showsStats, !isTransitioning else { return }
             cameraState = state
             cameraState.zoom = min(3.5, max(1, cameraState.zoom))
             cameraState.pan.width = min(3.8, max(-3.8, cameraState.pan.width))
