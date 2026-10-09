@@ -64,10 +64,13 @@ final class AppModel {
         let archive = defaults.data(forKey: "session.v1")
             .flatMap { try? JSONDecoder().decode(SessionArchive.self, from: $0) }
         timer = archive?.timer ?? FocusTimer(configuration: preferences.timer)
-        records = archive?.records ?? []
-        activity = FocusActivity(records: archive?.records ?? [], through: Date())
+        let records = (archive?.records ?? [])
+            .filter { $0.duration.isFinite && $0.duration > 0 }
+            .sorted { $0.finishedAt > $1.finishedAt }
+        self.records = records
+        activity = FocusActivity(records: records, through: Date())
         intention = archive?.intention ?? ""
-        let today = (archive?.records ?? []).filter { Calendar.current.isDateInToday($0.finishedAt) }
+        let today = records.filter { Calendar.current.isDateInToday($0.finishedAt) && $0.finishedAt <= Date() }
         todayRecords = today
         todayDuration = today.reduce(0) { $0 + $1.duration }
 
@@ -98,19 +101,23 @@ final class AppModel {
     }
 
     func toggleTimer() {
+        let activeDeadline = timer.status == .running ? timer.deadline : nil
         tick()
+        // A click on Pause at the deadline must not start (or pause) the next mode.
+        if let activeDeadline, timer.deadline != activeDeadline { return }
         if timer.status == .running {
             timer.pause(at: now)
         } else {
             guard applyDurationInput() else { return }
             timer.start(at: now)
-            if timer.mode == .focus && preferences.startMusicWithFocus { player.play() }
+            if timer.mode == .focus && preferences.startMusicWithFocus { player.playWithFocus() }
         }
         banner = nil
         saveSession()
     }
 
     func resetTimer() {
+        tick()
         durationInput = nil
         timer.restart()
         now = Date()
@@ -118,6 +125,7 @@ final class AppModel {
     }
 
     func selectMode(_ mode: FocusMode) {
+        tick()
         guard timer.mode != mode else { return }
         durationInput = nil
         timer.select(mode, configuration: preferences.timer)
@@ -127,6 +135,7 @@ final class AppModel {
     }
 
     func setDuration(_ seconds: TimeInterval) {
+        tick()
         guard timer.setDuration(seconds) else { return }
         durationInput = nil
         now = Date()
@@ -135,6 +144,7 @@ final class AppModel {
     }
 
     func skipSession() {
+        tick()
         durationInput = nil
         timer.skip(configuration: preferences.timer)
         now = Date()
@@ -182,7 +192,7 @@ final class AppModel {
         if preferences.completionSound { NSSound(named: "Glass")?.play() }
         if preferences.notifications { notify(message) }
         if timer.status == .running && timer.mode == .focus && preferences.startMusicWithFocus {
-            player.play()
+            player.playWithFocus()
         }
         saveSession()
     }
@@ -238,7 +248,7 @@ final class AppModel {
     }
 
     private func refreshToday() {
-        todayRecords = records.filter { Calendar.current.isDate($0.finishedAt, inSameDayAs: now) }
+        todayRecords = records.filter { Calendar.current.isDate($0.finishedAt, inSameDayAs: now) && $0.finishedAt <= now }
         todayDuration = todayRecords.reduce(0) { $0 + $1.duration }
     }
 

@@ -105,6 +105,7 @@ final class RadioPlayer: NSObject, WKNavigationDelegate {
     private(set) var isLoading = false
     private(set) var hasLoaded = false
     private(set) var isReady = false
+    private(set) var pausedForOutputChange = false
     private(set) var error: String?
     var volume: Double {
         didSet {
@@ -116,6 +117,7 @@ final class RadioPlayer: NSObject, WKNavigationDelegate {
     @ObservationIgnored lazy var webView: WKWebView = makeWebView()
     @ObservationIgnored lazy var surfaces = VideoSurfaceRouter(webView: webView)
     @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored private var outputMonitor: AudioOutputMonitor?
     @ObservationIgnored private var wantsPlayback = false {
         didSet { if wantsPlayback != oldValue { updatePlaybackActivity() } }
     }
@@ -137,6 +139,7 @@ final class RadioPlayer: NSObject, WKNavigationDelegate {
         station = RadioStation(rawValue: defaults.string(forKey: "radio.station") ?? "") ?? .defaultStation
         volume = defaults.object(forKey: "radio.volume") as? Double ?? 0.6
         super.init()
+        outputMonitor = AudioOutputMonitor { [weak self] in self?.audioOutputDidDisconnect() }
     }
 
     private func makeWebView() -> WKWebView {
@@ -208,6 +211,7 @@ final class RadioPlayer: NSObject, WKNavigationDelegate {
     }
 
     var statusText: String {
+        if pausedForOutputChange { return "Headphones disconnected · Press play to resume" }
         if error != nil { return "Connection needs a moment" }
         if isLoading { return "Tuning in…" }
         return isPlaying ? "Live from Lofi Girl" : "A little calm, whenever you need it"
@@ -218,12 +222,30 @@ final class RadioPlayer: NSObject, WKNavigationDelegate {
     }
 
     func play() {
-        if !wantsPlayback {
+        requestPlayback(reload: false)
+    }
+
+    private func requestPlayback(reload: Bool) {
+        outputMonitor?.refresh()
+        if !wantsPlayback || reload {
             reconnectAttempts = 0
             resetPlaybackProgress()
         }
         wantsPlayback = true
-        if !hasLoaded || error != nil { load() }
+        if pausedForOutputChange {
+            pausedForOutputChange = false
+            // WebKit unblocks media asynchronously; a play command sent earlier can be lost.
+            webView.setAllMediaPlaybackSuspended(false) { [weak self] in
+                self?.beginPlayback(reload: reload)
+            }
+        } else {
+            beginPlayback(reload: reload)
+        }
+    }
+
+    private func beginPlayback(reload: Bool) {
+        guard wantsPlayback, !pausedForOutputChange else { return }
+        if reload || !hasLoaded || error != nil { load() }
         else if isReady { evaluate("radioPlay()") }
     }
 
@@ -233,6 +255,20 @@ final class RadioPlayer: NSObject, WKNavigationDelegate {
         evaluate("radioPause()")
         isPlaying = false
         isLoading = false
+    }
+
+    func audioOutputDidDisconnect() {
+        guard wantsPlayback || isPlaying || isLoading else { return }
+        pausedForOutputChange = true
+        pause()
+        // Suspend the iframe too, including buffering media and late YouTube play events.
+        if hasLoaded { webView.setAllMediaPlaybackSuspended(true, completionHandler: nil) }
+    }
+
+    func playWithFocus() {
+        outputMonitor?.refresh()
+        guard !pausedForOutputChange else { return }
+        play()
     }
 
     func select(_ station: RadioStation) {
@@ -253,9 +289,7 @@ final class RadioPlayer: NSObject, WKNavigationDelegate {
     }
 
     func retry() {
-        reconnectAttempts = 0
-        wantsPlayback = true
-        load()
+        requestPlayback(reload: true)
     }
 
     func toggleMute() {
@@ -307,7 +341,7 @@ final class RadioPlayer: NSObject, WKNavigationDelegate {
             if state == 1 {
                 // A delayed playing event must not undo an explicit native pause.
                 if !wantsPlayback {
-                    guard acceptsVideoInput else { evaluate("radioPause()"); return }
+                    guard acceptsVideoInput, !pausedForOutputChange else { evaluate("radioPause()"); return }
                     wantsPlayback = true
                 }
                 isPlaying = true

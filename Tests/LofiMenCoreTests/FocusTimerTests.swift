@@ -30,9 +30,12 @@ struct FocusTimerTests {
             ("Typed durations accept exact seconds and reject invalid input", durationInput),
             ("Custom durations persist, reset, and complete precisely", customDuration),
             ("Activity aggregates sessions across three full calendar weeks", activityAggregation),
-            ("Short sessions grow a varied, stable forest with bounded density", gardenGrowth),
+            ("Focus grows distinct habitats without moving existing plants", gardenGrowth),
             ("Activity excludes old and future records", activityRange),
+            ("Older activity windows have exact, non-overlapping boundaries", activityHistory),
+            ("Invalid durations cannot inflate activity or grow plants", invalidActivity),
             ("Activity respects local days across daylight-saving changes", activityTimeZone),
+            ("Headphone loss pauses Bluetooth, USB, and same-device jack routes", headphoneDisconnection),
             ("Existing preferences migrate and theme choice persists", preferenceMigration)
         ]
         var failures = 0
@@ -211,7 +214,7 @@ struct FocusTimerTests {
         try expectEqual(activity.totalSessions, 3)
         try expectEqual(activity.totalDuration, 3_030)
         try expectEqual(activity.activeDays, 2)
-        try expectEqual(days.first { $0.date == calendar.startOfDay(for: now) }?.level, 4)
+        try expectEqual(days.first { $0.date == calendar.startOfDay(for: now) }?.level, 2)
         try expectEqual(days.first { $0.date == calendar.startOfDay(for: yesterday) }?.level, 1)
         for offset in 0..<7 {
             let end = calendar.date(byAdding: .day, value: offset, to: now)!
@@ -273,37 +276,88 @@ struct FocusTimerTests {
         }
         try expectEqual(day(0).flowers, 0)
         try expectEqual(day(1).flowers, 1)
-        try expectEqual((4...6).contains(day(1_200).flowers), true)
+        try expectEqual(day(0).planting.isEmpty, true)
         try expectEqual(day(1_200).bushes, 1)
         try expectEqual(day(600).trees, 0)
-        try expectEqual(day(1_800).trees, 1)
-        try expectEqual(day(3_000).trees, 2)
-        try expectEqual(day(599).hasHive, false)
-        try expectEqual(day(2_400).hasHive, true)
-        try expectEqual(day(1_200).hasFox, false)
-        try expectEqual(day(3_300).hasFox, true)
-        let rich = day(1_000_000)
-        try expectEqual((6...8).contains(rich.flowers), true)
-        try expectEqual((1...2).contains(rich.bushes), true)
-        try expectEqual(rich.trees, 3)
-        try expectEqual(rich.bees, 1)
+        try expectEqual(day(1_499).trees, 0)
+        try expectEqual(day(1_500).trees, 1)
+        try expectEqual(day(7_200).trees > day(1_500).trees, true)
+        try expectEqual(day(14_400).planting.count > day(3_600).planting.count, true)
 
         let variedDays = (0..<30).map { offset in
-            ActivityDay(date: start.addingTimeInterval(Double(offset) * 86_400), duration: 1_200, sessions: 1, isInRange: true)
+            ActivityDay(date: start.addingTimeInterval(Double(offset) * 86_400), duration: 7_200, sessions: 4, isInRange: true)
         }
-        try expectEqual(Set(variedDays.map(\.trees)), Set([0, 1]))
+        try expectEqual(Set(variedDays.map(\.habitat)), Set(GardenHabitat.allCases))
         try expectEqual(Set(variedDays.map(\.flowers)).count > 1, true)
+        try expectEqual(variedDays.contains(where: \.hasHive), true)
+        try expectEqual(variedDays.contains(where: \.hasFox), true)
+        try expectEqual(variedDays.allSatisfy { !($0.hasHive && $0.hasFox) }, true)
         for original in variedDays {
             let rebuilt = ActivityDay(date: original.date, duration: original.duration, sessions: original.sessions, isInRange: true)
             try expectEqual(original.plantingSeed, rebuilt.plantingSeed)
-            try expectEqual(original.flowers, rebuilt.flowers)
-            try expectEqual(original.trees, rebuilt.trees)
+            try expectEqual(original.planting, rebuilt.planting)
+            let future = ActivityDay(date: original.date, duration: 10_800, sessions: 6, isInRange: false)
+            try expectEqual(future.planting.isEmpty && future.trees == 0 && !future.hasFox && !future.hasHive, true)
             var previous = (flowers: 0, bushes: 0, trees: 0)
-            for minutes in 0...90 {
+            for minutes in stride(from: 0, through: 360, by: 5) {
                 let grown = ActivityDay(date: original.date, duration: Double(minutes * 60), sessions: 1, isInRange: true)
                 try expectEqual(grown.flowers >= previous.flowers && grown.bushes >= previous.bushes && grown.trees >= previous.trees, true)
                 previous = (grown.flowers, grown.bushes, grown.trees)
             }
+            let mature = ActivityDay(date: original.date, duration: 1_000_000, sessions: 50, isInRange: true)
+            try expectEqual(mature.planting.count <= 40, true)
+            try expectEqual(mature.planting.allSatisfy { abs($0.x) <= 0.45 && abs($0.z) <= 0.45 && $0.height > 0 && $0.height <= 1.2 }, true)
+            for plant in original.planting {
+                guard let rooted = mature.planting.first(where: { $0.id == plant.id }) else {
+                    throw TestFailure(description: "Growing a habitat removed an existing plant")
+                }
+                try expectEqual(rooted.x, plant.x)
+                try expectEqual(rooted.z, plant.z)
+                try expectEqual(rooted.kind, plant.kind)
+                try expectEqual(rooted.rotation, plant.rotation)
+                try expectEqual(rooted.height >= plant.height, true)
+            }
+        }
+    }
+
+    static func activityHistory() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York")!
+        let now = ISO8601DateFormatter().date(from: "2026-03-12T16:00:00Z")!
+        let current = FocusActivity(records: [], through: now, calendar: calendar)
+        let records = [current.startDate.addingTimeInterval(-1), current.startDate, now].map {
+            SessionRecord(finishedAt: $0, duration: 1_500, intention: "Boundary")
+        }
+        let history = FocusActivity(records: records, through: now, calendar: calendar, weekOffset: -3)
+        let live = FocusActivity(records: records, through: now, calendar: calendar)
+        try expectEqual(history.totalSessions, 1)
+        try expectEqual(live.totalSessions, 2)
+        try expectEqual(history.weeks.flatMap { $0 }.filter(\.isInRange).count, 21)
+        try expectEqual(calendar.date(byAdding: .day, value: 1, to: history.endDate), live.startDate)
+        try expectEqual(Set(history.weeks.flatMap { $0 }.map(\.date)).isDisjoint(with: live.weeks.flatMap { $0 }.map(\.date)), true)
+        let older = FocusActivity(records: records, through: now, calendar: calendar, weekOffset: -6)
+        try expectEqual(older.totalSessions, 0)
+        let clamped = FocusActivity(records: records, through: now, calendar: calendar, weekOffset: 3)
+        try expectEqual(clamped.startDate, live.startDate)
+        let overlap = FocusActivity(records: records, through: now, calendar: calendar, weekOffset: -1)
+        for day in overlap.weeks.flatMap({ $0 }) {
+            if let sameDay = live.weeks.flatMap({ $0 }).first(where: { $0.date == day.date }) {
+                try expectEqual(day.planting, sameDay.planting)
+            }
+        }
+    }
+
+    static func invalidActivity() throws {
+        let records = [0, -30, .infinity, .nan, 60].map {
+            SessionRecord(finishedAt: start, duration: $0, intention: "Imported record")
+        }
+        let activity = FocusActivity(records: records, through: start)
+        try expectEqual(activity.totalDuration, 60)
+        try expectEqual(activity.totalSessions, 1)
+        try expectEqual(activity.activeDays, 1)
+        for duration in [Double.nan, .infinity, -1] {
+            let day = ActivityDay(date: start, duration: duration, sessions: 0, isInRange: true)
+            try expectEqual(day.planting.isEmpty, true)
         }
     }
 
@@ -318,15 +372,42 @@ struct FocusTimerTests {
         try expectEqual(preferences.autoStartBreaks, true)
         try expectEqual(preferences.startMusicWithFocus, false)
         try expectEqual(preferences.notifications, true)
-        preferences.appearance = .catppuccin
-        let restored = try JSONDecoder().decode(Preferences.self, from: JSONEncoder().encode(preferences))
-        try expectEqual(restored.appearance, .catppuccin)
-        try expectEqual(restored.timer.focusMinutes, 47)
+        for appearance in AppAppearance.allCases {
+            preferences.appearance = appearance
+            let restored = try JSONDecoder().decode(Preferences.self, from: JSONEncoder().encode(preferences))
+            try expectEqual(restored.appearance, appearance)
+            try expectEqual(restored.timer.focusMinutes, 47)
+        }
         var previousTheme = try JSONSerialization.jsonObject(with: legacy) as! [String: Any]
         previousTheme["appearance"] = "tokyoNight"
         let migrated = try JSONDecoder().decode(Preferences.self, from: JSONSerialization.data(withJSONObject: previousTheme))
         try expectEqual(migrated.appearance, .candlelight)
         try expectEqual(migrated.timer.focusMinutes, 47)
         try expectEqual(migrated.notifications, true)
+    }
+
+    static func headphoneDisconnection() throws {
+        let speakers = AudioOutputRoute(deviceID: 1, isHeadphones: false)
+        let bluetooth = AudioOutputRoute(deviceID: 2, isHeadphones: true)
+        let usb = AudioOutputRoute(deviceID: 3, isHeadphones: true)
+        let wired = AudioOutputRoute(deviceID: 1, isHeadphones: true, dataSource: 10, jackConnected: true)
+        let unplugged = AudioOutputRoute(deviceID: 1, isHeadphones: false, dataSource: 11, jackConnected: false)
+        try expectEqual(bluetooth.shouldPause(afterChangingTo: speakers), true)
+        try expectEqual(usb.shouldPause(afterChangingTo: speakers), true)
+        try expectEqual(wired.shouldPause(afterChangingTo: unplugged), true)
+        try expectEqual(bluetooth.shouldPause(afterChangingTo: nil), true)
+        try expectEqual(bluetooth.shouldPause(afterChangingTo: AudioOutputRoute(deviceID: 2, isHeadphones: true, isConnected: false)), true)
+        // Some jacks retain their headphone terminal type after the plug is removed.
+        try expectEqual(wired.shouldPause(afterChangingTo: AudioOutputRoute(deviceID: 1, isHeadphones: true, dataSource: 10, jackConnected: false)), true)
+        try expectEqual(wired.shouldPause(afterChangingTo: AudioOutputRoute(deviceID: 1, isHeadphones: true, dataSource: 11, jackConnected: true)), true)
+        for route in [speakers, bluetooth, usb, wired] {
+            try expectEqual(route.shouldPause(afterChangingTo: route), false)
+        }
+        // Connecting headphones and unrelated device notifications must not interrupt music.
+        try expectEqual(speakers.shouldPause(afterChangingTo: bluetooth), false)
+        try expectEqual(speakers.shouldPause(afterChangingTo: wired), false)
+        try expectEqual(speakers.shouldPause(afterChangingTo: nil), false)
+        let alreadyDisconnected = AudioOutputRoute(deviceID: 2, isHeadphones: true, isConnected: false)
+        try expectEqual(alreadyDisconnected.shouldPause(afterChangingTo: speakers), false)
     }
 }

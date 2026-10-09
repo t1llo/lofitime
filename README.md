@@ -23,9 +23,11 @@ Requires **macOS 14 or later**. Open the DMG and drag **Lofitime.app** into **Ap
 ## Features
 
 - **Live lo-fi radio:** Chill house (default), Study lo-fi, Sleepy lo-fi, and Synthwave.
+- **Headphone-aware playback:** music pauses when wired, Bluetooth, or USB headphones disconnect. Press Play to resume; your focus timer keeps running.
 - **Focus timers:** customizable Pomodoro cycles and editable countdowns.
-- **Focus forest:** short sessions grow a varied forest of flowers, tall trees, and animated wildlife across three weeks of daily squares. Hover for daily focus time, click for sessions, and scroll or pinch to zoom. Planting stays consistent and session history stays saved locally.
-- **Native macOS:** a compact studio, menu-bar player, two themes, and completion notifications.
+- **Focus forest:** grow wildflower meadows, birch groves, pine woodland, and fern glades on a connected landscape. Short sessions plant shoots, 25 minutes roots a tree, and longer focus grows a richer habitat with local wildlife. Each day's plants stay rooted as it grows.
+- **Activity history:** see focus time, completed sessions, and active days; browse older three-week windows, hover for daily totals, and click a clearing for its sessions. Scroll or pinch to zoom, drag to pan, and click the zoom percentage to recenter. History stays saved locally.
+- **Native macOS:** a compact studio, menu-bar player, completion notifications, and five coordinated themes: Candlelight, Catppuccin, Moss, Moonlight, and Rosewood.
 - **Convenience:** launch at login, automatic updates, and optional automatic breaks.
 - **Video quality:** choose an available resolution through YouTube's player in Settings.
 
@@ -51,10 +53,12 @@ The app is built at **`build/Lofitime.app`**. Local builds use an ad-hoc signatu
 | `make check` | Test, build, and verify the app bundle |
 | `make dev` | Launch a debug build |
 | `make smoke` | Check native controls and live playback |
+| `make activity-smoke` | Check activity, garden interaction, themes, and saved sessions offline |
+| `make audio-smoke` | Simulate headphone loss during live playback and check pause/resume |
 | `make preview` | Save screenshots to `build/previews/` |
 | `make help` | List commands |
 
-GitHub Actions checks builds and scans Git history with Gitleaks on every push and pull request. Smoke tests require internet and a logged-in desktop session; they use isolated settings and play briefly at 1% volume.
+GitHub Actions checks builds and scans Git history with Gitleaks on every push and pull request. Native smoke tests use isolated settings and require a logged-in desktop session. The playback smoke test also requires internet and plays briefly at 1% volume.
 
 ## Keyboard shortcuts
 

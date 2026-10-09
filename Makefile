@@ -2,7 +2,7 @@ SHELL := /bin/bash
 CONFIGURATION ?= release
 APP := build/Lofitime.app
 
-.PHONY: help build debug run dev test check smoke performance preview install clean
+.PHONY: help build debug run dev test check smoke activity-smoke audio-smoke performance preview install clean
 .DEFAULT_GOAL := help
 
 help: ## Show the available commands
@@ -40,6 +40,12 @@ check: test build ## Test, release-build, and verify the app bundle
 
 smoke: debug ## Exercise native timer + real YouTube playback (requires internet)
 	@"$(APP)/Contents/MacOS/LofiMen" --smoke-test
+
+activity-smoke: debug ## Check native activity, garden interactions, and themes (no network)
+	@"$(APP)/Contents/MacOS/LofiMen" --smoke-activity
+
+audio-smoke: debug ## Check headphone-loss pause and explicit resume with live playback
+	@"$(APP)/Contents/MacOS/LofiMen" --smoke-audio-output
 
 performance: debug ## Check background playback and idle resource behavior (requires internet)
 	@"$(APP)/Contents/MacOS/LofiMen" --performance-test

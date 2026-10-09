@@ -10,12 +10,29 @@ struct FocusGarden: View {
     let activity: FocusActivity
     @Binding var selectedDay: Date?
     @State private var zoom = 1.0
+    @State private var resetID = 0
 
     var body: some View {
-        GardenSceneView(weeks: activity.gardenWeeks, selectedDay: selectedDay, theme: theme, zoom: $zoom) { date in
-            selectedDay = selectedDay == date ? nil : date
+        VStack(spacing: 0) {
+            HStack(spacing: 5) {
+                Image(systemName: "leaf")
+                Text("25m to root · 1h to flourish · 2h to thrive")
+                Spacer(minLength: 6)
+                HStack(spacing: 0) {
+                    IconButton(symbol: "minus", label: "Zoom out", size: 24) { zoom = max(1, zoom / 1.3) }
+                        .disabled(zoom == 1).accessibilityIdentifier("activity-zoom-out")
+                    Button { zoom = 1; resetID += 1 } label: {
+                        Text("\(Int(zoom * 100))%").font(.room(size: 9)).monospacedDigit().frame(width: 35)
+                    }.buttonStyle(.plain).help("Recenter forest").accessibilityLabel("Recenter forest")
+                        .accessibilityIdentifier("activity-recenter")
+                    IconButton(symbol: "plus", label: "Zoom in", size: 24) { zoom = min(4, zoom * 1.3) }
+                        .disabled(zoom == 4).accessibilityIdentifier("activity-zoom-in")
+                }
+            }.font(.room(size: 9)).foregroundStyle(theme.secondary).padding(.horizontal, 12).padding(.top, 6)
+            GardenSceneView(weeks: activity.gardenWeeks, selectedDay: selectedDay, theme: theme, zoom: $zoom, resetID: resetID) { date in
+                selectedDay = selectedDay == date ? nil : date
+            }.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -24,6 +41,7 @@ struct GardenSceneView: NSViewRepresentable {
     let selectedDay: Date?
     let theme: RoomTheme
     @Binding var zoom: Double
+    var resetID = 0
     let select: (Date) -> Void
 
     func makeNSView(context: Context) -> GardenView {
@@ -34,7 +52,7 @@ struct GardenSceneView: NSViewRepresentable {
         view.allowsCameraControl = false
         view.setAccessibilityElement(true)
         view.setAccessibilityRole(.group)
-        view.setAccessibilityLabel("\(FocusActivity.historyWeeks) full weeks of daily forest squares. Hover for focus time, click for sessions, scroll to zoom and drag to pan.")
+        view.setAccessibilityLabel("\(FocusActivity.historyWeeks) weeks of daily forest clearings. Hover for focus time, click for sessions, scroll to zoom and drag to pan.")
         view.setAccessibilityIdentifier("activity-forest")
         return view
     }
@@ -43,20 +61,28 @@ struct GardenSceneView: NSViewRepresentable {
         view.select = select
         view.days = weeks.flatMap(\.days).filter(\.isInRange)
         view.changeZoom = { zoom = $0 }
+        view.hoverTheme = theme
         let signature = NSColor(theme.background).description + weeks.flatMap(\.days).map { "\($0.date.timeIntervalSince1970):\($0.duration):\($0.isInRange)" }.joined(separator: "|")
         if view.signature != signature {
+            let previousPosition = view.pointOfView?.position
+            let samePeriod = view.periodStart == weeks.first?.days.first?.date
+            view.periodStart = weeks.first?.days.first?.date
             view.signature = signature
             view.hideHover()
             view.backgroundColor = NSColor(theme.background)
             view.scene = GardenBuilder.scene(weeks: weeks, theme: theme)
             view.pointOfView = view.scene?.rootNode.childNode(withName: "camera", recursively: false)
+            if samePeriod, let previousPosition { view.pointOfView?.position = previousPosition }
             view.hasAnimation = weeks.flatMap(\.days).contains { $0.hasHive || $0.hasFox }
             view.updateAnimation()
+        }
+        if view.resetID != resetID || (zoom == 1 && view.zoom > 1) {
+            view.pointOfView?.position = GardenBuilder.cameraPosition
+            view.resetID = resetID
         }
         view.zoom = zoom
         view.weekCount = weeks.count
         view.fitCamera()
-        if zoom == 1 { view.pointOfView?.position = SCNVector3(0, 16, 10) }
         for day in weeks.flatMap(\.days) {
             view.scene?.rootNode.childNode(withName: "selection-\(day.date.timeIntervalSince1970)", recursively: true)?.isHidden = day.date != selectedDay
         }
@@ -70,6 +96,9 @@ struct GardenSceneView: NSViewRepresentable {
 
     final class GardenView: SCNView {
         var signature = ""
+        var periodStart: Date?
+        var resetID = 0
+        var hoverTheme = RoomTheme.candlelight
         var hasAnimation = false
         private var windowObservers: [NSObjectProtocol] = []
 
@@ -127,8 +156,8 @@ struct GardenSceneView: NSViewRepresentable {
             // Fit the actual calendar, not an oversized landscape. Weekdays run
             // across the map so each day has room for its low-poly details.
             let aspect = bounds.width / bounds.height
-            let width: CGFloat = 7.4
-            let height = CGFloat(weekCount) * 1.06 * 0.848 + 0.55
+            let width: CGFloat = 8.8
+            let height = CGFloat(weekCount) * 1.06 * 0.77 + 1.65
             fittedScale = max(height / 2, width / aspect / 2) * 1.02
             pointOfView?.camera?.orthographicScale = fittedScale / zoom
         }
@@ -144,7 +173,8 @@ struct GardenSceneView: NSViewRepresentable {
             let location = convert(event.locationInWindow, from: nil)
             guard let day = day(at: location) else { hideHover(); return }
             if hoverCard.superview == nil { addSubview(hoverCard) }
-            hoverCard.show(day)
+            hoverCard.show(day, theme: hoverTheme)
+            setHover(day.date)
             let size = hoverCard.frame.size
             hoverCard.setFrameOrigin(NSPoint(
                 x: min(max(8, location.x + 14), max(8, bounds.width - size.width - 8)),
@@ -152,17 +182,25 @@ struct GardenSceneView: NSViewRepresentable {
             hoverCard.isHidden = false
         }
         override func mouseExited(with event: NSEvent) { hideHover() }
-        func hideHover() { hoverCard.isHidden = true }
+        func hideHover() { hoverCard.isHidden = true; setHover(nil) }
+
+        private func setHover(_ date: Date?) {
+            for day in days {
+                scene?.rootNode.childNode(withName: "hover-\(day.date.timeIntervalSince1970)", recursively: true)?.isHidden = day.date != date
+            }
+        }
 
         func day(at location: NSPoint) -> ActivityDay? {
-            for hit in hitTest(location, options: [.searchMode: SCNHitTestSearchMode.all.rawValue]) {
-                var node: SCNNode? = hit.node
-                while let current = node {
-                    if let name = current.name, name.hasPrefix("day-"), let timestamp = Double(name.dropFirst(4)) {
-                        return days.first { $0.date.timeIntervalSince1970 == timestamp }
-                    }
-                    node = current.parent
-                }
+            // Intersect the ground rather than a canopy overhanging a neighboring day.
+            let near = unprojectPoint(SCNVector3(location.x, location.y, 0))
+            let far = unprojectPoint(SCNVector3(location.x, location.y, 1))
+            guard abs(far.y - near.y) > 0.0001 else { return nil }
+            let distance = -near.y / (far.y - near.y)
+            let x = near.x + (far.x - near.x) * distance
+            let z = near.z + (far.z - near.z) * distance
+            for day in days {
+                guard let patch = scene?.rootNode.childNode(withName: "day-\(day.date.timeIntervalSince1970)", recursively: false) else { continue }
+                if abs(x - patch.position.x) <= 0.53 && abs(z - patch.position.z) <= 0.53 { return day }
             }
             return nil
         }
@@ -170,6 +208,7 @@ struct GardenSceneView: NSViewRepresentable {
         final class HoverCard: NSView {
             private let dateLabel = NSTextField(labelWithString: "")
             private let durationLabel = NSTextField(labelWithString: "")
+            private let habitatLabel = NSTextField(labelWithString: "")
 
             init() {
                 super.init(frame: .zero)
@@ -182,21 +221,32 @@ struct GardenSceneView: NSViewRepresentable {
                 durationLabel.textColor = .white
                 addSubview(dateLabel)
                 addSubview(durationLabel)
+                habitatLabel.font = .systemFont(ofSize: 10)
+                addSubview(habitatLabel)
                 isHidden = true
                 setAccessibilityIdentifier("activity-day-hover")
             }
 
             required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-            func show(_ day: ActivityDay) {
+            func show(_ day: ActivityDay, theme: RoomTheme) {
+                layer?.backgroundColor = NSColor(theme.surface).cgColor
+                layer?.borderColor = NSColor(theme.line).cgColor
+                layer?.borderWidth = 1
+                dateLabel.textColor = NSColor(theme.secondary)
+                durationLabel.textColor = NSColor(theme.text)
+                habitatLabel.textColor = NSColor(theme.activity)
                 dateLabel.stringValue = day.date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
                 durationLabel.stringValue = "\(SessionDuration.summary(day.duration)) focused"
+                habitatLabel.stringValue = day.duration > 0 ? "\(day.habitat.title) · \(day.sessions) \(day.sessions == 1 ? "session" : "sessions")" : day.growthTitle
                 dateLabel.sizeToFit()
                 durationLabel.sizeToFit()
-                let width = max(dateLabel.frame.width, durationLabel.frame.width) + 24
-                frame.size = NSSize(width: width, height: 58)
-                dateLabel.setFrameOrigin(NSPoint(x: 12, y: 34))
-                durationLabel.setFrameOrigin(NSPoint(x: 12, y: 12))
+                habitatLabel.sizeToFit()
+                let width = max(dateLabel.frame.width, durationLabel.frame.width, habitatLabel.frame.width) + 24
+                frame.size = NSSize(width: width, height: 78)
+                dateLabel.setFrameOrigin(NSPoint(x: 12, y: 54))
+                durationLabel.setFrameOrigin(NSPoint(x: 12, y: 31))
+                habitatLabel.setFrameOrigin(NSPoint(x: 12, y: 12))
             }
 
             // The tooltip must not interrupt hovering, tile selection, or panning.
@@ -207,11 +257,11 @@ struct GardenSceneView: NSViewRepresentable {
                 let element = DayElement()
                 element.setAccessibilityParent(self)
                 element.setAccessibilityRole(.button)
-                element.setAccessibilityLabel("\(day.date.formatted(date: .complete, time: .omitted)), \(SessionDuration.summary(day.duration)) focused")
+                element.setAccessibilityLabel("\(day.date.formatted(date: .complete, time: .omitted)), \(SessionDuration.summary(day.duration)) focused, \(day.sessions) sessions, \(day.growthTitle)")
                 element.setAccessibilityIdentifier("activity-day-\(day.date.timeIntervalSince1970)")
                 element.press = { [weak self] in self?.select?(day.date) }
                 if let patch = scene?.rootNode.childNode(withName: "day-\(day.date.timeIntervalSince1970)", recursively: true), let window {
-                    let projected = projectPoint(patch.position)
+                    let projected = projectPoint(patch.convertPosition(SCNVector3(0, 0, 0.30), to: nil))
                     let size = bounds.height / (2 * fittedScale / zoom) * 0.94
                     let rect = NSRect(x: projected.x - size / 2, y: projected.y - size / 2, width: size, height: size)
                     element.setAccessibilityFrame(window.convertToScreen(convert(rect, to: nil)))
@@ -235,8 +285,8 @@ struct GardenSceneView: NSViewRepresentable {
             if hypot(location.x - previous.x, location.y - previous.y) > 2 { dragged = true }
             if dragged, let camera = pointOfView {
                 let factor = 2 * fittedScale / zoom / max(bounds.height, 1)
-                camera.position.x -= (location.x - previous.x) * factor
-                camera.position.z += (location.y - previous.y) * factor
+                camera.position.x = min(4, max(-4, camera.position.x - (location.x - previous.x) * factor))
+                camera.position.z = min(14, max(8, camera.position.z + (location.y - previous.y) * factor / 0.77))
                 start = location
             }
         }
@@ -258,12 +308,9 @@ struct GardenSceneView: NSViewRepresentable {
 
 @MainActor enum GardenBuilder {
     private static var models: [String: SCNNode] = [:]
+    static let cameraPosition = SCNVector3(0, 13, 11)
 
-    static func tileColor(level: Int, theme: RoomTheme = .candlelight) -> NSColor {
-        let colors = [NSColor(theme.elevated), color(0.83, 0.90, 0.73), color(0.69, 0.82, 0.56),
-                      color(0.53, 0.73, 0.41), color(0.38, 0.62, 0.30)]
-        return colors[min(4, max(0, level))]
-    }
+    static func hex(_ value: UInt32) -> NSColor { NSColor(Color(hex: value)) }
 
     static func color(_ red: CGFloat, _ green: CGFloat, _ blue: CGFloat) -> NSColor {
         NSColor(calibratedRed: red, green: green, blue: blue, alpha: 1)
@@ -284,7 +331,7 @@ struct GardenSceneView: NSViewRepresentable {
         return node
     }
 
-    static func model(_ name: String, height: Float) -> SCNNode {
+    static func model(_ name: String, height: Float, foliage: NSColor? = nil) -> SCNNode {
         if models[name] == nil, let url = AppResources.bundle.url(forResource: name, withExtension: "obj", subdirectory: "Garden") {
             let asset = MDLAsset(url: url)
             let root = SCNNode()
@@ -294,14 +341,28 @@ struct GardenSceneView: NSViewRepresentable {
                     material.lightingModel = .physicallyBased
                     material.roughness.contents = 1
                     material.isDoubleSided = true
-                    if let name = material.name, name.lowercased().contains("grass") || name.lowercased().contains("leaf") {
-                        material.diffuse.contents = color(0.39, 0.60, 0.34)
-                    }
                 }
             }
             models[name] = root
         }
         let copy = models[name]?.clone() ?? SCNNode()
+        // SceneKit clones share geometry and materials; copy before tinting each plant.
+        copy.enumerateChildNodes { child, _ in
+            guard let geometry = child.geometry?.copy() as? SCNGeometry else { return }
+            geometry.materials = geometry.materials.map { original in
+                let material = original.copy() as! SCNMaterial
+                let name = (material.name ?? "").lowercased()
+                if name.contains("grass") || name.contains("leaf") {
+                    material.diffuse.contents = foliage ?? color(0.45, 0.61, 0.38)
+                } else if name.contains("wood") {
+                    material.diffuse.contents = color(0.39, 0.29, 0.21)
+                } else if name.contains("dirt") {
+                    material.diffuse.contents = color(0.48, 0.49, 0.43)
+                }
+                return material
+            }
+            child.geometry = geometry
+        }
         let bounds = copy.boundingBox
         let originalHeight = bounds.max.y - bounds.min.y
         if originalHeight > 0 {
@@ -323,101 +384,78 @@ struct GardenSceneView: NSViewRepresentable {
         camera.camera?.orthographicScale = 4.0
         camera.camera?.zNear = 0.1
         camera.camera?.zFar = 100
-        camera.position = SCNVector3(0, 16, 10)
-        camera.look(at: SCNVector3Zero)
+        camera.position = cameraPosition
+        camera.look(at: SCNVector3(0, 0.2, 0))
         root.addChildNode(camera)
         let sun = SCNNode()
         sun.light = SCNLight()
         sun.light?.type = .directional
-        sun.light?.intensity = 1_000
-        sun.light?.color = color(1, 0.94, 0.80)
+        sun.light?.intensity = 850
+        sun.light?.color = hex(theme.garden.sunlight)
         sun.light?.castsShadow = true
         sun.light?.shadowRadius = 5
         sun.light?.shadowMapSize = CGSize(width: 1024, height: 1024)
-        sun.light?.shadowColor = NSColor.black.withAlphaComponent(0.18)
+        sun.light?.shadowColor = NSColor.black.withAlphaComponent(0.28)
         sun.eulerAngles = SCNVector3(-Float.pi / 3, -Float.pi / 5, 0)
         root.addChildNode(sun)
         let ambient = SCNNode()
         ambient.light = SCNLight()
         ambient.light?.type = .ambient
-        ambient.light?.intensity = 450
+        ambient.light?.intensity = 550
         ambient.light?.color = color(0.84, 0.90, 1)
         root.addChildNode(ambient)
 
-        let centerRow = Float(weeks.count - 1) / 2
+        addTerrain(to: root, weeks: weeks, theme: theme)
+        let centerRow = Double(weeks.count - 1) / 2
 
         for week in weeks {
           for (row, day) in week.days.enumerated() {
-            let flowers = day.flowers
-            let bushes = day.bushes
-            let trees = day.trees
-            let hasHive = day.hasHive
-            let hasFox = day.hasFox
             let seed = day.plantingSeed
             let patch = SCNNode()
             patch.name = day.isInRange ? "day-\(day.date.timeIntervalSince1970)" : "future-day"
-            patch.position = SCNVector3(Float(row - 3) * 1.06, 0, (Float(week.index) - centerRow) * 1.06)
+            patch.position = SCNVector3(Double(row - 3) * 1.06, 0, (Double(week.index) - centerRow) * 1.06)
             root.addChildNode(patch)
-            let turf = SCNBox(width: 0.94, height: 0.015, length: 0.94, chamferRadius: 0.025)
-            let planting = node(turf, color: tileColor(level: day.level, theme: theme))
-            planting.opacity = day.isInRange ? 1 : 0.45
-            patch.addChildNode(planting)
-            let ring = SCNNode()
-            for side: CGFloat in [-1, 1] {
-                ring.addChildNode(node(SCNBox(width: 0.98, height: 0.015, length: 0.025, chamferRadius: 0), color: color(0.72, 0.52, 0.25), at: SCNVector3(0, 0.025, side * 0.48)))
-                ring.addChildNode(node(SCNBox(width: 0.025, height: 0.015, length: 0.98, chamferRadius: 0), color: color(0.72, 0.52, 0.25), at: SCNVector3(side * 0.48, 0.025, 0)))
-            }
-            ring.name = "selection-\(day.date.timeIntervalSince1970)"
-            patch.addChildNode(ring)
-
-            for index in 0..<(flowers > 0 ? 2 : 0) {
-                let grass = model("grass", height: 0.10)
-                place(grass, index: index, seed: seed, radius: 0.40)
-                patch.addChildNode(grass)
-            }
-            let variants = ["flower_purpleA", "flower_yellowA", "flower_redA", "flower_purpleB"]
-            for index in 0..<flowers {
-                let flower = model(variants[(index + seed) % variants.count], height: 0.22 + Float(index % 3) * 0.035)
-                place(flower, index: index, seed: seed + 21, radius: 0.35)
-                patch.addChildNode(flower)
-            }
-            for index in 0..<bushes {
-                let bush = model(index == 0 ? "plant_bushDetailed" : "plant_bushSmall", height: 0.25)
-                bush.position = index == 0 ? SCNVector3(-0.28, 0, 0.12) : SCNVector3(0.28, 0, 0.22)
-                bush.eulerAngles.y = CGFloat(seed % 6)
-                patch.addChildNode(bush)
-                if day.hasBerries {
-                    for berry in 0..<5 {
-                        let fruit = SCNSphere(radius: 0.045)
+            addClearing(to: patch, day: day, theme: theme)
+            for plant in day.planting {
+                let foliage = hex(plant.kind == .pine ? theme.garden.pine : theme.garden.leaf)
+                    .blended(withFraction: plant.variation * 0.22, of: hex(theme.garden.grass))!
+                let planted: SCNNode
+                let height = Float(plant.height)
+                switch plant.kind {
+                case .grass: planted = model(day.habitat == .fernGlade ? "grass_large" : "grass", height: height, foliage: foliage)
+                case .flower:
+                    let species = ["flower_purpleA", "flower_yellowA", "flower_redA", "flower_purpleB"]
+                    planted = model(species[(seed + plant.id / 3) % species.count], height: height, foliage: foliage)
+                case .bush: planted = model(day.habitat == .fernGlade ? "plant_bush" : "plant_bushSmall", height: height, foliage: foliage)
+                case .oak: planted = model("tree_oak", height: height, foliage: foliage)
+                case .pine: planted = model("tree_pineRoundA", height: height, foliage: foliage)
+                case .birch: planted = birch(height: plant.height, foliage: foliage, variation: plant.variation)
+                case .mushroom: planted = model("mushroom_red", height: height)
+                case .rock: planted = model("rock_smallA", height: height)
+                }
+                planted.name = [.oak, .pine, .birch].contains(plant.kind) ? "forest-tree" : "plant-\(plant.id)"
+                planted.position.x = plant.x
+                planted.position.z = plant.z
+                planted.eulerAngles.y = plant.rotation
+                patch.addChildNode(planted)
+                if plant.kind == .bush, day.hasBerries {
+                    for index in 0..<3 {
+                        let fruit = SCNSphere(radius: 0.022)
                         fruit.segmentCount = 6
-                        bush.addChildNode(node(fruit, color: color(0.73, 0.28, 0.40),
-                                               at: SCNVector3(Float(berry % 3 - 1) * 0.10, 0.25 + Float(berry % 2) * 0.09, 0.15)))
+                        patch.addChildNode(node(fruit, color: hex(0xB86F7D), at: SCNVector3(
+                            plant.x + Double(index - 1) * 0.04, plant.height * 0.7, plant.z + 0.055)))
                     }
                 }
             }
-            for index in 0..<trees {
-                let height = (index == 0 ? Float(1.25) : 1.0) + Float((seed / 5 + index) % 4) * 0.08
-                let tree = model((seed + index) % 2 == 0 ? "tree_oak" : "tree_pineRoundA", height: height)
-                tree.name = "forest-tree"
-                let positions = [SCNVector3(0.24, 0, -0.24), SCNVector3(-0.27, 0, -0.20), SCNVector3(0.04, 0, 0.25)]
-                tree.position = positions[index]
-                tree.eulerAngles.y = CGFloat((seed + index * 3) % 8) * .pi / 4
-                patch.addChildNode(tree)
-            }
-            if flowers >= 5 && !hasFox {
-                let mushroom = model("mushroom_red", height: 0.23)
-                mushroom.position = SCNVector3(-0.30, 0, 0.30)
-                patch.addChildNode(mushroom)
-            }
-            if hasHive {
+            if day.hasHive {
                 let hive = beehive()
-                hive.scale = SCNVector3(0.5, 0.5, 0.5)
-                hive.position = SCNVector3(0.28, 0, 0.28)
+                hive.scale = SCNVector3(0.38, 0.38, 0.38)
+                hive.position = SCNVector3((day.plantingRandom(701) - 0.5) * 0.6, 0, 0.24)
                 patch.addChildNode(hive)
-                for index in 0..<1 {
+                for index in 0..<day.bees {
                     let bee = bee()
                     bee.name = "forest-bee"
-                    bee.scale = SCNVector3(0.5, 0.5, 0.5)
+                    bee.scale = SCNVector3(0.4, 0.4, 0.4)
                     bee.position = SCNVector3(0.15, 0.65, 0.20)
                     patch.addChildNode(bee)
                     if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
@@ -430,17 +468,17 @@ struct GardenSceneView: NSViewRepresentable {
                     }
                 }
             }
-            if hasFox {
+            if day.hasFox {
                 let fox = fox()
                 fox.name = "forest-fox"
-                fox.scale = SCNVector3(0.5, 0.5, 0.5)
+                fox.scale = SCNVector3(0.4, 0.4, 0.4)
                 fox.position = SCNVector3(-0.22, 0, 0.22)
                 fox.eulerAngles.y = CGFloat(seed % 3) * 0.5
                 patch.addChildNode(fox)
                 if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
                     let stroll = SCNAction.customAction(duration: 12 + Double(seed % 4)) { node, elapsed in
                         let angle = Double(elapsed) / (12 + Double(seed % 4)) * .pi * 2
-                        node.position = SCNVector3(cos(angle) * 0.36, 0.015 + abs(sin(angle * 12)) * 0.012, sin(angle) * 0.33)
+                        node.position = SCNVector3(cos(angle) * 0.32, 0.015 + abs(sin(angle * 12)) * 0.008, 0.25 + sin(angle) * 0.08)
                         node.eulerAngles.y = CGFloat(-angle)
                     }
                     fox.runAction(.repeatForever(.sequence([stroll, .wait(duration: 3)])))
@@ -449,14 +487,6 @@ struct GardenSceneView: NSViewRepresentable {
           }
         }
         return scene
-    }
-
-    private static func place(_ node: SCNNode, index: Int, seed: Int, radius: Float) {
-        let angle = Float(index) * 2.39996 + Float(seed) * 0.71
-        let distance = radius * sqrt(Float((index * 7 + seed * 3) % 19 + 1) / 20)
-        node.position.x = CGFloat(cos(angle) * distance)
-        node.position.z = CGFloat(sin(angle) * distance * 0.8)
-        node.eulerAngles.y = CGFloat(angle)
     }
 
     private static func beehive() -> SCNNode {

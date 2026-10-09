@@ -14,7 +14,7 @@ struct PreferencesView: View {
 
             VStack(alignment: .leading, spacing: 14) {
                 Text("Appearance").font(.room(size: 13, weight: .medium))
-                HStack(spacing: 10) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 195), spacing: 10)], spacing: 10) {
                     ForEach(AppAppearance.allCases) { appearance in
                         themeChoice(appearance)
                     }
@@ -113,14 +113,16 @@ struct PreferencesView: View {
                 }
                 VStack(alignment: .leading, spacing: 3) {
                     Text(appearance.title).font(.room(size: 12, weight: .medium))
-                    Text(appearance == .candlelight ? "Warm · default" : "Mocha").font(.room(size: 9)).foregroundStyle(palette.muted)
+                    Text(appearance.subtitle).font(.room(size: 9)).foregroundStyle(palette.muted)
                 }
+                Spacer(minLength: 0)
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 13)).foregroundStyle(selected ? palette.accent : palette.muted)
-            }.padding(.horizontal, 13).frame(height: 56).foregroundStyle(palette.text)
+            }.padding(.horizontal, 13).frame(maxWidth: .infinity).frame(height: 62).foregroundStyle(palette.text)
                 .background(palette.background, in: RoundedRectangle(cornerRadius: 9))
                 .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(selected ? palette.accent : palette.line))
         }.buttonStyle(.plain).accessibilityLabel(appearance.title)
+            .accessibilityIdentifier("theme-\(appearance.rawValue)")
             .accessibilityAddTraits(selected ? .isSelected : [])
     }
 

@@ -1,9 +1,26 @@
 import Foundation
 
 public enum AppAppearance: String, CaseIterable, Codable, Identifiable, Sendable {
-    case candlelight, catppuccin
+    case candlelight, catppuccin, moss, moonlight, rosewood
     public var id: String { rawValue }
-    public var title: String { self == .candlelight ? "Candlelight" : "Catppuccin" }
+    public var title: String {
+        switch self {
+        case .candlelight: "Candlelight"
+        case .catppuccin: "Catppuccin"
+        case .moss: "Moss"
+        case .moonlight: "Moonlight"
+        case .rosewood: "Rosewood"
+        }
+    }
+    public var subtitle: String {
+        switch self {
+        case .candlelight: "Honey & warm earth"
+        case .catppuccin: "Soft lavender & mocha"
+        case .moss: "Sage & forest green"
+        case .moonlight: "Mist & midnight blue"
+        case .rosewood: "Dusty rose & plum"
+        }
+    }
 }
 
 public struct Preferences: Codable, Sendable {

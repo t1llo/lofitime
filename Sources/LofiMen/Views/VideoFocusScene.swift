@@ -109,7 +109,11 @@ struct VideoFocusScene: View {
                         .accessibilityLabel("Radio volume")
                 }.frame(width: compact ? 112 : 138).foregroundStyle(.white.opacity(0.75))
             }
-            if let error = model.player.error {
+            if model.player.pausedForOutputChange {
+                Label("Headphones disconnected. Press Play to resume.", systemImage: "headphones")
+                    .font(.room(size: 10)).foregroundStyle(theme.text.opacity(0.8))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else if let error = model.player.error {
                 HStack(alignment: .top) {
                     Text(error).font(.room(size: 10)).foregroundStyle(theme.amber)
                         .fixedSize(horizontal: false, vertical: true)
