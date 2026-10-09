@@ -15,6 +15,7 @@ enum DebugTools {
         CommandLine.arguments.contains("--render-preview") || CommandLine.arguments.contains("--smoke-test")
             || CommandLine.arguments.contains("--performance-test") || CommandLine.arguments.contains("--smoke-activity")
             || CommandLine.arguments.contains("--smoke-audio-output")
+            || CommandLine.arguments.contains("--render-activity")
         #else
         false
         #endif
@@ -32,14 +33,14 @@ enum DebugTools {
         #if DEBUG
         guard requested else { return }
         // SwiftUI can restore a menu-bar-only launch after the previous window was closed.
-        // Diagnostics need a studio even in that case, before its .task can run.
+            // Diagnostics need a window even in that case, before its .task can run.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             guard !hasRun else { return }
             if let window = NSApp.windows.first(where: { $0.title == "Lofitime" }) {
                 window.makeKeyAndOrderFront(nil)
             } else if let menu = NSApp.mainMenu?.items.compactMap(\.submenu).first(where: {
-                $0.items.contains(where: { $0.title == "Open My Studio" })
-            }), let index = menu.items.firstIndex(where: { $0.title == "Open My Studio" }) {
+                $0.items.contains(where: { $0.title == "Open My Room" })
+            }), let index = menu.items.firstIndex(where: { $0.title == "Open My Room" }) {
                 menu.performActionForItem(at: index)
             } else {
                 smokeFailure("Could not open the studio for native diagnostics")
@@ -53,6 +54,32 @@ enum DebugTools {
         #if DEBUG
         guard requested, !hasRun else { return }
         hasRun = true
+        if let index = CommandLine.arguments.firstIndex(of: "--render-activity"), CommandLine.arguments.count > index + 1 {
+            let directory = URL(fileURLWithPath: CommandLine.arguments[index + 1])
+            Task { @MainActor in
+                do {
+                    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                    for appearance in AppAppearance.allCases {
+                        try await renderActivityExample(to: directory.appendingPathComponent("activity-\(appearance.rawValue).png"), appearance: appearance)
+                    }
+                    try await renderActivityExample(to: directory.appendingPathComponent("activity-compact.png"), appearance: .candlelight,
+                                                    size: CGSize(width: 700, height: 540))
+                    try await renderActivityExample(to: directory.appendingPathComponent("activity-desktop.png"), appearance: .candlelight,
+                                                    size: CGSize(width: 700, height: 540), showStats: true)
+                    for minutes in [0, 25, 120, 360, 720] {
+                        let now = Date()
+                        let records = [SessionRecord(finishedAt: now, duration: Double(minutes) * 60, intention: "Preview")]
+                        try await render(StudyRoomView(growth: FocusRoom(records: records, through: now))
+                            .frame(width: 800, height: 580).environment(\.roomTheme, .candlelight)
+                            .foregroundStyle(RoomTheme.candlelight.text).preferredColorScheme(.dark),
+                            to: directory.appendingPathComponent("room-\(minutes).png"))
+                    }
+                    print("Activity previews saved to \(directory.path)")
+                    exit(0)
+                } catch { smokeFailure("Activity preview: \(error)") }
+            }
+            return
+        }
         if let index = CommandLine.arguments.firstIndex(of: "--render-preview"),
            CommandLine.arguments.count > index + 1 {
             let directory = URL(fileURLWithPath: CommandLine.arguments[index + 1])
@@ -62,10 +89,10 @@ enum DebugTools {
                     for section in StudioSection.allCases {
                         model.section = section
                         try await render(StudioView(model: model).frame(width: 700, height: 540),
-                                   to: directory.appendingPathComponent("\(section == .studio ? "studio" : section == .sessions ? "sessions" : "preferences").png"))
+                                    to: directory.appendingPathComponent("\(section == .sessions ? "sessions" : "preferences").png"))
                     }
                     try await render(MenuBarView(model: model), to: directory.appendingPathComponent("menu-bar.png"))
-                    model.section = .studio
+                    model.section = .sessions
                     for station in [RadioStation.sleepy, .house] {
                         model.player.select(station)
                         try await render(MenuBarView(model: model), to: directory.appendingPathComponent("menu-bar-\(station.rawValue).png"))
@@ -73,9 +100,9 @@ enum DebugTools {
                     if model.player.station != .defaultStation { model.player.select(.defaultStation) }
                     for appearance in AppAppearance.allCases {
                         model.preferences.appearance = appearance
-                        model.section = .studio
+                        model.section = .sessions
                         try await render(StudioView(model: model).frame(width: 700, height: 540),
-                                         to: directory.appendingPathComponent("studio-\(appearance.rawValue).png"))
+                                         to: directory.appendingPathComponent("room-\(appearance.rawValue).png"))
                         try await render(MenuBarView(model: model), to: directory.appendingPathComponent("menu-bar-\(appearance.rawValue).png"))
                         model.section = .settings
                         try await render(StudioView(model: model).frame(width: 700, height: 540),
@@ -100,7 +127,8 @@ enum DebugTools {
     }
 
     #if DEBUG
-    @MainActor private static func render<V: View>(_ view: V, to url: URL) async throws {
+    @MainActor private static func render<V: View>(_ view: V, to url: URL,
+                                                 prepare: ((NSWindow) async -> Void)? = nil) async throws {
         // NSHostingView also captures native controls and scroll views, unlike ImageRenderer.
         let hosting = NSHostingView(rootView: view)
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: hosting.fittingSize),
@@ -111,6 +139,10 @@ enum DebugTools {
         window.orderFront(nil)
         defer { window.close() }
         try await Task.sleep(for: .milliseconds(600))
+        if let prepare {
+            await prepare(window)
+            try await Task.sleep(for: .milliseconds(800))
+        }
         hosting.layoutSubtreeIfNeeded()
         window.displayIfNeeded()
         guard let bitmap = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds) else {
@@ -128,6 +160,13 @@ enum DebugTools {
                 NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
                 NSBezierPath(roundedRect: rect, xRadius: 16, yRadius: 16).addClip()
                 sceneView.snapshot().draw(in: rect)
+                if let desktop = (sceneView as? StudyRoomScene.RoomView)?.desktopHost, !desktop.isHidden,
+                   let overlay = desktop.bitmapImageRepForCachingDisplay(in: desktop.bounds) {
+                    desktop.cacheDisplay(in: desktop.bounds, to: overlay)
+                    let screen = hosting.convert(desktop.bounds, from: desktop)
+                    overlay.draw(in: NSRect(x: screen.minX, y: hosting.isFlipped ? hosting.bounds.height - screen.maxY : screen.minY,
+                                           width: screen.width, height: screen.height))
+                }
                 NSGraphicsContext.restoreGraphicsState()
             }
             view.subviews.forEach { captureScenes(in: $0) }
@@ -211,8 +250,12 @@ enum DebugTools {
         guard model.now == idleTime, !model.player.hasLoaded else {
             smokeFailure("Idle app polled or loaded the player"); return
         }
+        let panel = menuBarPanel(model)
+        model.menuBarShowsRoom = true
+        panel.orderFront(nil)
+        defer { panel.close() }
         func startPlayback() async -> Bool {
-            model.player.volume = 0
+            model.player.volume = 0.01
             model.player.play()
             for _ in 0..<60 {
                 try? await Task.sleep(for: .milliseconds(500))
@@ -225,6 +268,7 @@ enum DebugTools {
             smokeFailure("Performance test could not start radio: \(model.player.error ?? "no playing state")"); return
         }
         window.orderOut(nil)
+        panel.orderOut(nil)
         try? await Task.sleep(for: .seconds(1))
         let start = try? await model.player.webView.evaluateJavaScript("player.getCurrentTime()") as? Double
         try? await Task.sleep(for: .seconds(6))
@@ -238,6 +282,8 @@ enum DebugTools {
         fflush(stdout)
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+        model.menuBarShowsRoom = false
+        panel.orderFront(nil)
         try? await Task.sleep(for: .seconds(1))
         guard model.player.surfaces.isVideoVisible, model.player.webView.frame.width > 320 else {
             smokeFailure("Visible video size did not recover"); return
@@ -304,63 +350,24 @@ enum DebugTools {
         try? await Task.sleep(for: .milliseconds(1_200))
         model.tick()
         guard model.records.count == 1, model.records.first?.duration == 1,
-              model.activity.totalSessions == 1, model.activity.activeDays == 1,
+              model.activity.week.totalSessions == 1, model.activity.week.activeDays == 1,
               model.todayRecords.count == 1, model.todayDuration == 1 else {
             smokeFailure("A completed exact-duration session did not update activity")
             return
         }
-        guard model.activity.weeks.flatMap({ $0 }).first(where: { $0.date == model.activity.endDate })?.flowers == 1 else {
-            smokeFailure("A short focus session did not grow the first flower"); return
+        guard FocusRoom(records: model.records, through: model.activity.updatedAt).nourishment == 1 else {
+            smokeFailure("A short completed session did not nourish the room"); return
         }
-        for name in ["flower_purpleA", "flower_purpleB", "flower_redA", "flower_yellowA", "grass", "plant_bushDetailed", "tree_oak", "tree_pineRoundA", "mushroom_red", "rock_smallA"] {
-            let modelNode = GardenBuilder.model(name, height: 1)
-            guard !modelNode.childNodes.isEmpty, modelNode.boundingBox.max.y > modelNode.boundingBox.min.y else {
-                smokeFailure("Bundled garden model did not load: \(name)"); return
-            }
-        }
-        print("PASS: a completed focus session grows a flower; bundled CC0 garden meshes load correctly")
-        let forestRecords = model.activity.weeks.flatMap { $0 }.filter(\.isInRange).map {
-            SessionRecord(finishedAt: $0.date, duration: 10_800, intention: "Forest diagnostic")
-        }
-        let forest = FocusActivity(records: forestRecords, through: Date())
-        let forestScene = GardenBuilder.scene(weeks: forest.gardenWeeks)
-        guard forestScene.rootNode.childNodes.filter({ $0.name?.hasPrefix("day-") == true || $0.name == "future-day" }).count == FocusActivity.historyDays,
-              let tree = forestScene.rootNode.childNode(withName: "forest-tree", recursively: true),
-              let fox = forestScene.rootNode.childNode(withName: "forest-fox", recursively: true),
-              let bee = forestScene.rootNode.childNode(withName: "forest-bee", recursively: true),
-               forestScene.rootNode.childNode(withName: "forest-ground", recursively: false) != nil,
-               tree.boundingBox.max.y * tree.scale.y > 0.4 else {
-            smokeFailure("Forest terrain, trees, or habitat-specific wildlife did not load"); return
-        }
-        if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
-            guard fox.hasActions, bee.hasActions else {
-                smokeFailure("Forest wildlife was not animated"); return
-            }
-        }
-        let map = GardenSceneView.GardenView(frame: NSRect(x: 0, y: 0, width: 436, height: 260))
-        map.scene = forestScene
-        map.pointOfView = forestScene.rootNode.childNode(withName: "camera", recursively: false)
-        map.weekCount = forest.weeks.count
-        map.fitCamera()
-        let fitted = map.pointOfView?.camera?.orthographicScale ?? 0
-        map.zoom = 3
-        map.fitCamera()
-        guard fitted > 0, abs((map.pointOfView?.camera?.orthographicScale ?? 0) * 3 - fitted) < 0.01 else {
-            smokeFailure("Forest camera did not fit or zoom correctly"); return
-        }
-        map.hasAnimation = true
-        map.isPlaying = true
-        map.updateAnimation()
-        guard !map.isPlaying else { smokeFailure("An offscreen garden kept animating"); return }
-        map.scene = nil
-        print("PASS: connected terrain, habitat-specific wildlife, and 3× zoom load")
+        smokeRoomModels()
 
         model.selectMode(.focus)
         model.banner = nil
         await smokeNavigation(model)
+        let timerPanel = menuBarPanel(model)
+        timerPanel.makeKeyAndOrderFront(nil)
         try? await Task.sleep(for: .milliseconds(300))
-        if let window = NSApp.windows.first(where: { $0.title == "Lofitime" }),
-           let field = textFields(in: window.contentView).first(where: { $0.stringValue == "25:00" }) {
+        let window = timerPanel
+        if let field = textFields(in: window.contentView).first(where: { $0.stringValue == "25:00" }) {
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             try? await Task.sleep(for: .milliseconds(300))
@@ -396,10 +403,13 @@ enum DebugTools {
             model.resetTimer()
             print("PASS: Command-Return commits a newly typed duration before starting")
         } else {
-            smokeFailure("The editable countdown is missing from the studio"); return
+            smokeFailure("The editable countdown is missing from the menu-bar popup"); return
         }
 
+        await smokeMenuBarRoom(model, panel: timerPanel)
+
         if CommandLine.arguments.contains("--smoke-activity") {
+            timerPanel.close()
             smokeActivityPersistence()
             await smokeActivityHistory()
             print("Native activity smoke test passed.")
@@ -449,20 +459,13 @@ enum DebugTools {
             }
         }
 
+        timerPanel.orderOut(nil)
         await smokeVideoQuality(model)
-
-        guard let studioSurface = model.player.surfaces.activeSurface,
-              studioSurface.presentation == .studio, studioSurface.window?.isVisible == true else {
-            smokeFailure("The live player is not attached to the studio background (surface: \(String(describing: model.player.surfaces.activeSurface?.presentation)), window: \(String(describing: model.player.webView.window?.title)), visible: \(String(describing: model.player.webView.window?.isVisible)))"); return
-        }
+        timerPanel.close()
+        try? await Task.sleep(for: .milliseconds(300))
         let marker = UUID().uuidString
         _ = try? await model.player.webView.evaluateJavaScript("window.handoffMarker = '\(marker)'")
-        let panel = NSPanel(contentRect: NSRect(origin: .zero, size: MenuBarView.size),
-                            styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        panel.isReleasedWhenClosed = false
-        panel.contentView = NSHostingView(rootView: MenuBarView(model: model))
-        panel.level = .floating
-        panel.center()
+        let panel = menuBarPanel(model)
         panel.orderFront(nil)
         try? await Task.sleep(for: .seconds(1))
         guard !panel.isOpaque,
@@ -507,11 +510,16 @@ enum DebugTools {
                 smokeFailure("Live background capture failed: \(error)"); return
             }
         }
+        await smokeMenuBarRoom(model, panel: panel)
+        let afterRoom = try? await model.player.webView.evaluateJavaScript("window.handoffMarker")
+        let afterRoomState = try? await model.player.webView.evaluateJavaScript("player.getPlayerState()")
+        guard afterRoom as? String == marker, afterRoomState as? Int == 1 else {
+            smokeFailure("Switching between music and room reloaded or interrupted playback"); return
+        }
         panel.orderOut(nil)
         try? await Task.sleep(for: .milliseconds(500))
-        guard model.player.surfaces.activeSurface === studioSurface,
-              model.player.webView.window === studioSurface.window else {
-            smokeFailure("Closing the menu-bar panel did not return the video to the studio"); return
+        guard !model.player.surfaces.isVideoVisible, model.player.webView.frame.size == CGSize(width: 320, height: 180) else {
+            smokeFailure("Closing the menu-bar panel did not return the video to its background host"); return
         }
         panel.orderFront(nil)
         try? await Task.sleep(for: .milliseconds(500))
@@ -520,10 +528,10 @@ enum DebugTools {
         }
         panel.close()
         try? await Task.sleep(for: .milliseconds(500))
-        guard model.player.webView.window === studioSurface.window else {
+        guard !model.player.surfaces.isVideoVisible, model.player.webView.superview != nil else {
             smokeFailure("Closing a video host left the live player orphaned"); return
         }
-        print("PASS: the same live video fills the menu-bar panel and returns to the studio without reloading")
+        print("PASS: menu-bar music/room switching and closing/reopening preserve the same live stream")
 
         model.player.pause()
         try? await Task.sleep(for: .seconds(6))
@@ -595,7 +603,9 @@ enum DebugTools {
             if model.player.isPlaying { break }
             if model.player.error != nil { break }
         }
-        guard model.player.isPlaying else { smokeFailure("Could not change stations with the studio window closed"); return }
+        guard model.player.isPlaying else {
+            smokeFailure("Could not change stations with the app window closed (ready: \(model.player.isReady), loading: \(model.player.isLoading), error: \(model.player.error ?? "none"))"); return
+        }
         print("PASS: a new station loads with the studio window closed")
 
         AppDelegate.openStudio?()
@@ -645,7 +655,7 @@ enum DebugTools {
         try? await Task.sleep(for: .seconds(1))
         guard model.player.surfaces.activeSurface?.presentation == .quality,
               model.player.surfaces.isInteractive, let frame = model.player.diagnosticFrame else {
-            smokeFailure("Quality settings did not host the same interactive YouTube player"); return
+            smokeFailure("Quality settings did not host the same interactive YouTube player (surface: \(String(describing: model.player.surfaces.activeSurface?.presentation)), interactive: \(model.player.surfaces.isInteractive), sheet: \(studio.attachedSheet != nil))"); return
         }
         do {
             let opened = try await model.player.webView.callAsyncJavaScript("""
@@ -685,8 +695,8 @@ enum DebugTools {
             guard let sheet = studio.attachedSheet, await click("video-quality-done", in: sheet) else {
                 smokeFailure("Video quality settings could not be dismissed"); return
             }
-            guard await click("navigation-Studio", in: studio) else {
-                smokeFailure("Studio could not reopen after quality settings"); return
+            guard await click("navigation-Activity", in: studio) else {
+                smokeFailure("Activity could not reopen after quality settings"); return
             }
             try? await Task.sleep(for: .milliseconds(500))
             let preserved = try await model.player.webView.evaluateJavaScript("window.qualityMarker")
@@ -716,48 +726,27 @@ enum DebugTools {
         guard await click("navigation-Activity", in: window), model.section == .sessions else {
             smokeFailure("Clicking Activity in the studio sidebar did not open it"); return
         }
-        guard accessibilityElement("activity-forest", in: window) != nil,
-              accessibilityElement("activity-session-heading", in: window) == nil else {
-            smokeFailure("Activity did not open the full-pane forest"); return
+        guard accessibilityElement("activity-room", in: window) != nil,
+              accessibilityElement("activity-session-heading", in: window) == nil,
+              accessibilityElement("navigation-Studio", in: window) == nil,
+              accessibilityElement("desk-statistics", in: window) == nil else {
+            smokeFailure("Activity did not open the study room"); return
         }
-        guard let forest = garden(in: window.contentView), forest.bounds.height > 200 else {
-            smokeFailure("The forest has insufficient room below the activity summary"); return
+        guard let room = room(in: window.contentView), room.bounds.height > 180 else {
+            smokeFailure("The room has insufficient space in the activity page"); return
         }
-        // Hover must reveal totals without selecting the day or opening its sessions.
-        for date in [model.activity.endDate, model.activity.startDate] {
-            guard let patch = forest.scene?.rootNode.childNode(withName: "day-\(date.timeIntervalSince1970)", recursively: false),
-                  let day = forest.days.first(where: { $0.date == date }) else {
-                smokeFailure("The forest is missing a calendar day"); return
-            }
-            let projected = forest.projectPoint(patch.convertPosition(SCNVector3(0, 0.015, 0.3), to: nil))
-            let location = NSPoint(x: projected.x, y: projected.y)
-            guard forest.day(at: location)?.date == date,
-                  let event = NSEvent.mouseEvent(with: .mouseMoved, location: forest.convert(location, to: nil),
-                      modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
-                      windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 0, pressure: 0) else {
-                smokeFailure("Hover hit-testing did not find the correct forest day"); return
-            }
-            forest.mouseMoved(with: event)
-            guard textFields(in: forest).contains(where: { $0.stringValue == "\(SessionDuration.summary(day.duration)) focused" }),
-                  forest.subviews.contains(where: { $0 is GardenSceneView.GardenView.HoverCard && !$0.isHidden }),
-                  accessibilityElement("activity-session-heading", in: window) == nil else {
-                smokeFailure("Hover did not immediately show daily focus time without selecting"); return
-            }
-            forest.mouseExited(with: event)
-            guard forest.subviews.filter({ $0 is GardenSceneView.GardenView.HoverCard }).allSatisfy(\.isHidden) else {
-                smokeFailure("The forest hover tooltip stayed visible after leaving"); return
-            }
-        }
-        print("PASS: forest hover shows totals for focused and empty days without clicking")
-        guard await click("activity-day-\(model.activity.endDate.timeIntervalSince1970)", in: window),
+        guard await click("activity-view-stats", in: window) else { return }
+        try? await Task.sleep(for: .milliseconds(800))
+        guard room.showsStats, !room.isTransitioning,
+              await click("activity-day-\(model.activity.endDate.timeIntervalSince1970)", in: window),
               accessibilityElement("activity-session-heading", in: window) != nil,
               let record = model.records.first,
               accessibilityElement("session-record-\(record.id)", in: window) != nil else {
-            smokeFailure("Clicking today's garden day did not reveal its sessions"); return
+            smokeFailure("Clicking today's weekly bar did not reveal its sessions"); return
         }
         guard await click("activity-close-details", in: window),
               accessibilityElement("activity-session-heading", in: window) == nil else {
-            smokeFailure("Activity's Close button did not return to the full forest"); return
+            smokeFailure("Closing daily sessions did not return to Activity"); return
         }
         guard await click("navigation-Settings", in: window), model.section == .settings else {
             smokeFailure("The studio sidebar could not open Settings"); return
@@ -767,14 +756,16 @@ enum DebugTools {
                 smokeFailure("Theme selection did not apply \(appearance.title)"); return
             }
         }
-        guard await click("navigation-Studio", in: window), model.section == .studio else {
-            smokeFailure("The studio sidebar could not switch between Settings and Studio"); return
+        guard await click("navigation-Activity", in: window), model.section == .sessions else {
+            smokeFailure("The sidebar could not switch between Settings and Activity"); return
         }
-        print("PASS: real clicks explore daily sessions, switch all five themes, and return to Studio")
+        print("PASS: Activity/Settings navigation, desk-screen stats, daily sessions, and all five themes work with real clicks")
     }
 
     @MainActor private static func accessibilityElement(_ identifier: String, in root: AnyObject) -> AnyObject? {
         if root.accessibilityIdentifier?() == identifier { return root }
+        if let sheet = (root as? NSWindow)?.attachedSheet,
+           let match = accessibilityElement(identifier, in: sheet) { return match }
         for child in root.accessibilityChildren?() ?? [] {
             if let match = accessibilityElement(identifier, in: child as AnyObject) { return match }
         }
@@ -782,6 +773,7 @@ enum DebugTools {
     }
 
     @MainActor private static func click(_ identifier: String, in window: NSWindow) async -> Bool {
+        let window = window.attachedSheet ?? window
         guard let element = accessibilityElement(identifier, in: window) else {
             smokeFailure("Missing native UI element: \(identifier)"); return false
         }
@@ -804,10 +796,143 @@ enum DebugTools {
         return (view as? NSTextField).map { [$0] } ?? view.subviews.flatMap { textFields(in: $0) }
     }
 
-    @MainActor private static func garden(in view: NSView?) -> GardenSceneView.GardenView? {
+    @MainActor private static func room(in view: NSView?) -> StudyRoomScene.RoomView? {
         guard let view else { return nil }
-        if let garden = view as? GardenSceneView.GardenView { return garden }
-        return view.subviews.compactMap { garden(in: $0) }.first
+        if let room = view as? StudyRoomScene.RoomView { return room }
+        return view.subviews.compactMap { room(in: $0) }.first
+    }
+
+    @MainActor private static func menuBarPanel(_ model: AppModel) -> NSPanel {
+        model.menuBarShowsRoom = false
+        let panel = NSPanel(contentRect: NSRect(origin: .zero, size: MenuBarView.size),
+                            styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        panel.isReleasedWhenClosed = false
+        panel.contentView = NSHostingView(rootView: MenuBarView(model: model))
+        panel.level = .floating
+        panel.center()
+        return panel
+    }
+
+    @MainActor private static func smokeMenuBarRoom(_ model: AppModel, panel: NSPanel) async {
+        let status = model.timer.status
+        let duration = model.timer.duration
+        let loaded = model.player.hasLoaded
+        let playing = model.player.isPlaying
+        let volume = model.player.volume
+        if playing { model.player.volume = 0.01 }
+        defer { model.player.volume = volume }
+        guard await click("menu-bar-room-toggle", in: panel), model.menuBarShowsRoom,
+              let room = room(in: panel.contentView),
+              room.bounds.width > 250, room.bounds.height > 150,
+              accessibilityElement("room-timer-toggle", in: panel) != nil,
+              model.timer.status == status, model.timer.duration == duration, model.player.hasLoaded == loaded else {
+            smokeFailure("Menu-bar room switch lost the timer or failed to display the room"); return
+        }
+        if playing {
+            let before = try? await model.player.webView.evaluateJavaScript("player.getCurrentTime()") as? Double
+            try? await Task.sleep(for: .seconds(6))
+            let after = try? await model.player.webView.evaluateJavaScript("player.getCurrentTime()") as? Double
+            guard let before, let after, after - before >= 4.5, model.player.isPlaying,
+                  !model.player.surfaces.isVideoVisible,
+                  model.player.webView.frame.size == CGSize(width: 320, height: 180) else {
+                smokeFailure("Music stopped or kept a full-size video surface while the popup showed the room"); return
+            }
+            print("PASS: music advances while the menu-bar popup shows the room and the video surface stays small")
+        }
+        guard await click("menu-bar-room-toggle", in: panel), !model.menuBarShowsRoom,
+              accessibilityElement("room-timer-toggle", in: panel) == nil,
+              model.timer.status == status, model.timer.duration == duration,
+              !room.isPlaying else {
+            smokeFailure("Menu-bar music switch lost timer state or kept rendering the hidden room"); return
+        }
+        print("PASS: one button switches the menu-bar popup between music/timer and the cozy room")
+    }
+
+    @MainActor private static func smokeRoomGestures(_ room: StudyRoomScene.RoomView, in window: NSWindow) async {
+        guard accessibilityElement("activity-zoom-in", in: window) == nil,
+              let scroll = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: 40, wheel2: 0, wheel3: 0),
+              let event = NSEvent(cgEvent: scroll) else {
+            smokeFailure("Old zoom button remains or native scroll event is unavailable"); return
+        }
+        let originalScale = room.pointOfView?.camera?.orthographicScale ?? 0
+        room.scrollWheel(with: event)
+        guard room.cameraState.zoom > 1, (room.pointOfView?.camera?.orthographicScale ?? 0) < originalScale else {
+            smokeFailure("Scrolling did not zoom the room"); return
+        }
+        let origin = NSPoint(x: room.bounds.midX, y: room.bounds.midY)
+        func mouse(_ type: NSEvent.EventType, at point: NSPoint, count: Int = 1) -> NSEvent {
+            NSEvent.mouseEvent(with: type, location: room.convert(point, to: nil), modifierFlags: [],
+                               timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
+                               context: nil, eventNumber: 0, clickCount: count, pressure: 1)!
+        }
+        room.mouseDown(with: mouse(.leftMouseDown, at: origin))
+        room.mouseDragged(with: mouse(.leftMouseDragged, at: NSPoint(x: origin.x + 34, y: origin.y + 19)))
+        room.mouseUp(with: mouse(.leftMouseUp, at: origin))
+        guard room.cameraState.pan.width != 0, room.cameraState.pan.height != 0 else {
+            smokeFailure("Dragging did not move around the room"); return
+        }
+        room.mouseDown(with: mouse(.leftMouseDown, at: origin, count: 2))
+        guard room.cameraState == RoomCameraState() else {
+            smokeFailure("Double-click did not reset the room"); return
+        }
+        // Leave a distinctive view to check restoration after browsing the desktop.
+        room.scrollWheel(with: event)
+        room.mouseDown(with: mouse(.leftMouseDown, at: origin))
+        room.mouseDragged(with: mouse(.leftMouseDragged, at: NSPoint(x: origin.x - 15, y: origin.y + 5)))
+        room.mouseUp(with: mouse(.leftMouseUp, at: origin))
+        try? await Task.sleep(for: .milliseconds(200))
+    }
+
+    @MainActor private static func smokeRoomModels() {
+        for minutes in [0, 25, 120, 360, 720] {
+            let now = Date()
+            let records = [SessionRecord(finishedAt: now, duration: Double(minutes) * 60, intention: "Room diagnostic")]
+            let growth = FocusRoom(records: records, through: now)
+            let scene = StudyRoomBuilder.scene(growth: growth, theme: .candlelight)
+            for name in ["desk", "computer", "window", "bed", "chair"] {
+                guard let model = scene.rootNode.childNode(withName: name, recursively: true),
+                      !model.childNodes.isEmpty, model.boundingBox.max.y > model.boundingBox.min.y else {
+                    smokeFailure("Room essential is missing at \(minutes) minutes: \(name)"); return
+                }
+            }
+            var books = 0
+            var count = 0
+            scene.rootNode.enumerateChildNodes { node, _ in
+                if node.name?.hasPrefix("book-") == true { books += 1 }
+                count += 1
+            }
+            guard books == growth.bookCount, count < 1_500 else {
+                smokeFailure("The room's books or geometry budget did not match its growth"); return
+            }
+            if minutes == 0 {
+                guard scene.rootNode.childNode(withName: "desk-plant", recursively: true) == nil,
+                      scene.rootNode.childNode(withName: "bookshelf", recursively: true) == nil else {
+                    smokeFailure("An empty room already has grown decor"); return
+                }
+            } else if minutes == 720 {
+                for name in ["rug", "desk-lamp", "floor-lamp", "bookshelf", "hanging-plants", "blossom", "fairy-lights", "sleeping-cat",
+                             "pinboard", "open-notebook", "knitted-pouf", "bedside-candle", "keepsake-shelf", "desktop-screen"] {
+                    guard scene.rootNode.childNode(withName: name, recursively: true) != nil else {
+                        smokeFailure("A fully grown room is missing \(name)"); return
+                    }
+                }
+            }
+            let view = StudyRoomScene.RoomView(frame: NSRect(x: 0, y: 0, width: 520, height: 285))
+            view.scene = scene
+            view.pointOfView = scene.rootNode.childNode(withName: "camera", recursively: false)
+            view.fitCamera()
+            let scale = view.pointOfView?.camera?.orthographicScale ?? 0
+            view.cameraState.zoom = 1.5
+            view.fitCamera()
+            guard scale > 0, abs((view.pointOfView?.camera?.orthographicScale ?? 0) * 1.5 - scale) < 0.01 else {
+                smokeFailure("The room camera did not frame and zoom correctly"); return
+            }
+            view.hasAnimation = true
+            view.updateAnimation()
+            guard !view.isPlaying, scene.isPaused else { smokeFailure("An offscreen room kept rendering"); return }
+            view.scene = nil
+        }
+        print("PASS: all five room stages contain real 3D furniture, bounded books/plants, lights, and an idle offscreen renderer")
     }
 
     private static func smokeFailure(_ message: String) {
@@ -827,63 +952,52 @@ enum DebugTools {
         defaults.removePersistentDomain(forName: suite)
         defer { defaults.removePersistentDomain(forName: suite) }
         let now = Date()
-        let oldDate = Calendar.current.date(byAdding: .day, value: -30, to: now)!
+        let monthStart = Calendar.current.dateInterval(of: .month, for: now)!.start
+        let oldDate = Calendar.current.date(byAdding: .month, value: -1, to: monthStart)!.addingTimeInterval(3_600)
         let old = SessionRecord(finishedAt: oldDate, duration: 1_800, intention: "Older focus")
-        let recent = SessionRecord(finishedAt: now, duration: 9_000, intention: "A thriving forest")
+        let recent = SessionRecord(finishedAt: now, duration: 43_200, intention: "A cozy study")
         defaults.set(try? JSONEncoder().encode(DiagnosticArchive(timer: FocusTimer(), records: [recent, old], intention: "")), forKey: "session.v1")
         let model = AppModel(defaults: defaults)
         model.section = .sessions
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 700, height: 540), styleMask: [.titled], backing: .buffered, defer: false)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 700, height: 740), styleMask: [.titled], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
-        window.contentView = NSHostingView(rootView: StudioView(model: model).frame(width: 700, height: 540))
+        window.contentView = NSHostingView(rootView: StudioView(model: model).frame(width: 700, height: 740))
         window.center()
         window.makeKeyAndOrderFront(nil)
         defer { window.close() }
         try? await Task.sleep(for: .milliseconds(500))
-        guard let forest = garden(in: window.contentView),
-              await click("activity-zoom-in", in: window), forest.zoom > 1,
-              await click("activity-recenter", in: window), forest.zoom == 1 else {
-            smokeFailure("Garden zoom controls did not zoom and recenter"); return
-        }
-        let origin = NSPoint(x: forest.bounds.midX, y: forest.bounds.midY)
-        for (type, point) in [(NSEvent.EventType.leftMouseDown, origin), (.leftMouseDragged, NSPoint(x: origin.x + 25, y: origin.y + 10)), (.leftMouseUp, origin)] {
-            let event = NSEvent.mouseEvent(with: type, location: forest.convert(point, to: nil), modifierFlags: [],
-                                          timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
-                                          context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
-            switch type {
-            case .leftMouseDown: forest.mouseDown(with: event)
-            case .leftMouseDragged: forest.mouseDragged(with: event)
-            default: forest.mouseUp(with: event)
-            }
-        }
-        let panned = forest.pointOfView!.position
-        forest.select?(model.activity.endDate)
-        try? await Task.sleep(for: .milliseconds(300))
-        guard abs(panned.x) > 0, forest.pointOfView?.position.x == panned.x,
-              forest.pointOfView?.position.z == panned.z,
-              await click("activity-close-details", in: window),
-              await click("activity-recenter", in: window) else {
-            smokeFailure("Selecting a day reset the panned camera"); return
-        }
-        for day in forest.days {
-            guard let patch = forest.scene?.rootNode.childNode(withName: "day-\(day.date.timeIntervalSince1970)", recursively: false) else {
-                smokeFailure("A calendar clearing is missing"); return
-            }
-            let point = forest.projectPoint(patch.convertPosition(SCNVector3(0, 0, 0.3), to: nil))
-            guard forest.day(at: NSPoint(x: point.x, y: point.y))?.date == day.date else {
-                smokeFailure("Overhanging foliage selected a neighboring day"); return
-            }
-        }
-        guard await click("activity-previous", in: window),
-              forest.days.contains(where: { Calendar.current.isDate($0.date, inSameDayAs: oldDate) }),
-              await click("activity-day-\(Calendar.current.startOfDay(for: oldDate).timeIntervalSince1970)", in: window),
+        guard let room = room(in: window.contentView) else { smokeFailure("Missing interactive room"); return }
+        await smokeRoomGestures(room, in: window)
+        let scene = room.scene
+        let camera = room.cameraState
+        guard await click("activity-view-stats", in: window) else { return }
+        try? await Task.sleep(for: .milliseconds(800))
+        guard room.desktopHost?.isHidden == false,
+              await click("activity-week-previous", in: window),
+              await click("activity-week-current", in: window),
+              await click("desk-stats-month", in: window),
+              await click("activity-month-previous", in: window),
+              room.scene === scene,
+              await click("activity-month-day-\(Calendar.current.startOfDay(for: oldDate).timeIntervalSince1970)", in: window),
               accessibilityElement("session-record-\(old.id)", in: window) != nil,
-              await click("activity-today", in: window),
-              forest.days.contains(where: { $0.date == model.activity.endDate }),
-              accessibilityElement("activity-session-heading", in: window) == nil else {
-            smokeFailure("Historical sessions could not be browsed or Today retained a stale selection"); return
+              await click("activity-close-details", in: window),
+              await click("activity-month-current", in: window),
+              accessibilityElement("activity-session-heading", in: window) == nil,
+              await click("activity-view-stats", in: window) else {
+            smokeFailure("Weekly/monthly browsing changed room growth or lost historical sessions"); return
         }
-        print("PASS: zoom, pan, canopy hit-testing, historical sessions, and returning to Today work")
+        try? await Task.sleep(for: .milliseconds(800))
+        guard room.cameraState == camera, room.desktopHost?.isHidden == true else {
+            smokeFailure("Leaving the desktop did not restore the explored room view"); return
+        }
+        window.orderOut(nil)
+        try? await Task.sleep(for: .milliseconds(200))
+        room.updateAnimation()
+        // SwiftUI may have dismantled the native view after it scrolled offscreen.
+        guard !room.isPlaying, room.scene?.isPaused != false else {
+            smokeFailure("A hidden study room continued to render (playing: \(room.isPlaying), scene paused: \(String(describing: room.scene?.isPaused)))"); return
+        }
+        print("PASS: scroll zoom/drag, desk camera transition, historical desktop stats, restored room view, and hidden-window suspension work")
     }
 
     @MainActor private static func smokeActivityPersistence() {
@@ -903,7 +1017,7 @@ enum DebugTools {
         defaults.set(try? JSONEncoder().encode(preferences), forKey: "preferences.v1")
         let restored = AppModel(defaults: defaults)
         restored.tick()
-        guard restored.records.count == 1, restored.activity.totalSessions == 1,
+        guard restored.records.count == 1, restored.activity.allTimeDuration == 1,
               restored.todayRecords.isEmpty, restored.records.first?.finishedAt == yesterday.addingTimeInterval(1) else {
             smokeFailure("An overdue restored session was lost, duplicated, or assigned to today"); return
         }
@@ -912,6 +1026,10 @@ enum DebugTools {
             smokeFailure("Completed activity changed after relaunch"); return
         }
         print("PASS: an overdue saved session is recorded on its completion day exactly once across relaunches")
+        relaunched.menuBarShowsRoom = true
+        guard AppModel(defaults: defaults).menuBarShowsRoom else {
+            smokeFailure("The menu-bar room preference did not survive relaunch"); return
+        }
 
         let actions: [(String, () -> Void)] = [
             ("pause", { relaunched.toggleTimer() }),
@@ -938,11 +1056,12 @@ enum DebugTools {
         print("PASS: pause, reset, skip, mode changes, and duration edits preserve a just-completed session")
     }
 
-    @MainActor private static func renderActivityExample(to url: URL, appearance: AppAppearance) async throws {
+    @MainActor private static func renderActivityExample(to url: URL, appearance: AppAppearance,
+                                                        size: CGSize = CGSize(width: 820, height: 620), showStats: Bool = false) async throws {
         let now = Date()
         let calendar = Calendar.current
-        let records = (0..<FocusActivity.historyDays).compactMap { offset -> SessionRecord? in
-            let duration = [7_200, 1_500, 10_800, 0, 300, 5_400, 3_600, 900, 7_200, 0, 2_400, 14_400, 4_800, 600, 1_800, 9_600, 0, 3_900, 8_100, 12_000, 2_700][offset]
+        let records = (0..<45).compactMap { offset -> SessionRecord? in
+            let duration = [10_800, 7_200, 10_800, 5_400, 9_000, 7_200, 3_600, 0, 7_200, 0, 2_400, 10_800, 4_800, 600, 1_800][offset % 15]
             let date = calendar.date(byAdding: .day, value: -offset, to: now)!
             return duration > 0 ? SessionRecord(finishedAt: date, duration: Double(duration), intention: "Example session") : nil
         }
@@ -954,7 +1073,13 @@ enum DebugTools {
         let model = AppModel(defaults: defaults)
         model.section = .sessions
         model.preferences.appearance = appearance
-        try await render(StudioView(model: model).frame(width: 700, height: 540), to: url)
+        try await render(StudioView(model: model).frame(width: size.width, height: size.height), to: url, prepare: { window in
+            if showStats { _ = await click("activity-view-stats", in: window) }
+        })
+        if appearance == .candlelight && !showStats {
+            model.menuBarShowsRoom = true
+            try await render(MenuBarView(model: model), to: url.deletingLastPathComponent().appendingPathComponent("menu-bar-room.png"))
+        }
     }
     #endif
 }

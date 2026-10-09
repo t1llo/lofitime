@@ -96,7 +96,7 @@ private struct RoomCommands: Commands {
             CheckForUpdatesButton()
         }
         CommandGroup(replacing: .newItem) {
-            Button("Open My Studio") { show(.studio) }.keyboardShortcut("1", modifiers: .command)
+            Button("Open My Room") { show(.sessions) }.keyboardShortcut("1", modifiers: .command)
         }
         CommandGroup(replacing: .appSettings) {
             Button("Settings…") { show(.settings) }.keyboardShortcut(",", modifiers: .command)

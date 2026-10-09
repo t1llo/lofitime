@@ -1,11 +1,11 @@
 import Foundation
 import LofiMenCore
 
-private struct TestFailure: Error, CustomStringConvertible {
+struct TestFailure: Error, CustomStringConvertible {
     let description: String
 }
 
-private func expectEqual<T: Equatable>(_ actual: T, _ expected: T, line: UInt = #line) throws {
+func expectEqual<T: Equatable>(_ actual: T, _ expected: T, line: UInt = #line) throws {
     guard actual == expected else {
         throw TestFailure(description: "Line \(line): expected \(expected), got \(actual)")
     }
@@ -29,11 +29,11 @@ struct FocusTimerTests {
             ("Completion boundary and repeated start are exact", exactBoundary),
             ("Typed durations accept exact seconds and reject invalid input", durationInput),
             ("Custom durations persist, reset, and complete precisely", customDuration),
-            ("Activity aggregates sessions across three full calendar weeks", activityAggregation),
-            ("Focus grows distinct habitats without moving existing plants", gardenGrowth),
-            ("Activity excludes old and future records", activityRange),
-            ("Older activity windows have exact, non-overlapping boundaries", activityHistory),
-            ("Invalid durations cannot inflate activity or grow plants", invalidActivity),
+            ("Weekly totals respect local week starts and future days", activityAggregation),
+            ("Monthly history has exact boundaries, leap days and calendar averages", activityHistory),
+            ("Room grows across sessions and gently empties after a quiet week", roomGrowth),
+            ("Room progression is bounded and calendar browsing keeps history", roomHistory),
+            ("Invalid and future records cannot inflate activity or grow the room", invalidActivity),
             ("Activity respects local days across daylight-saving changes", activityTimeZone),
             ("Headphone loss pauses Bluetooth, USB, and same-device jack routes", headphoneDisconnection),
             ("Existing preferences migrate and theme choice persists", preferenceMigration)
@@ -205,52 +205,21 @@ struct FocusTimerTests {
             SessionRecord(finishedAt: yesterday, duration: 30, intention: "Short")
         ]
         let activity = FocusActivity(records: records, through: now, calendar: calendar)
-        let days = activity.weeks.flatMap { $0 }
-        try expectEqual(activity.weeks.count, 3)
-        try expectEqual(activity.weeks.allSatisfy { $0.count == 7 }, true)
-        try expectEqual(days.filter(\.isInRange).count, 17)
-        try expectEqual(Set(days.map(\.date)).count, 21)
-        try expectEqual(activity.weeks.allSatisfy { calendar.component(.weekday, from: $0[0].date) == 1 }, true)
-        try expectEqual(activity.totalSessions, 3)
-        try expectEqual(activity.totalDuration, 3_030)
-        try expectEqual(activity.activeDays, 2)
-        try expectEqual(days.first { $0.date == calendar.startOfDay(for: now) }?.level, 2)
-        try expectEqual(days.first { $0.date == calendar.startOfDay(for: yesterday) }?.level, 1)
-        for offset in 0..<7 {
-            let end = calendar.date(byAdding: .day, value: offset, to: now)!
-            let window = FocusActivity(records: [], through: end, calendar: calendar)
-            let visible = window.weeks.flatMap { $0 }.filter(\.isInRange)
-            try expectEqual(visible.count, 14 + calendar.component(.weekday, from: end))
-            try expectEqual(visible.first?.date, window.startDate)
-            try expectEqual(visible.last?.date, window.endDate)
-            try expectEqual(window.weeks.allSatisfy { $0.count == 7 }, true)
-            try expectEqual(window.weeks.count, 3)
-            try expectEqual(window.weeks.flatMap { $0 }.count, 21)
-        }
-    }
-
-    static func activityRange() throws {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        let now = ISO8601DateFormatter().date(from: "2026-09-29T12:00:00Z")!
-        let firstDay = calendar.date(from: DateComponents(year: 2026, month: 9, day: 13))!
-        let records = [firstDay.addingTimeInterval(-1), firstDay, now, now.addingTimeInterval(1)].map {
-            SessionRecord(finishedAt: $0, duration: 60, intention: "Boundary")
-        }
-        let activity = FocusActivity(records: records, through: now, calendar: calendar)
-        try expectEqual(activity.startDate, firstDay)
-        try expectEqual(activity.totalSessions, 2)
-        try expectEqual(activity.totalDuration, 120)
-        try expectEqual(activity.activeDays, 2)
-        let empty = FocusActivity(records: [], through: now, calendar: calendar)
-        try expectEqual(empty.totalSessions, 0)
-        try expectEqual(empty.weeks.flatMap { $0 }.allSatisfy { $0.level == 0 }, true)
-        let leapYear = FocusActivity(records: [], through: ISO8601DateFormatter().date(from: "2024-03-31T12:00:00Z")!, calendar: calendar)
-        try expectEqual(leapYear.startDate, calendar.date(from: DateComponents(year: 2024, month: 3, day: 17))!)
-        try expectEqual(leapYear.weeks.flatMap { $0 }.filter(\.isInRange).count, 15)
-        let newYear = FocusActivity(records: [], through: ISO8601DateFormatter().date(from: "2026-01-15T12:00:00Z")!, calendar: calendar)
-        try expectEqual(newYear.startDate, calendar.date(from: DateComponents(year: 2025, month: 12, day: 28))!)
-        try expectEqual(newYear.weeks.flatMap { $0 }.filter(\.isInRange).count, 19)
+        let days = activity.week.days
+        try expectEqual(days.count, 7)
+        try expectEqual(days.filter(\.isInRange).count, 3)
+        try expectEqual(Set(days.map(\.date)).count, 7)
+        try expectEqual(calendar.component(.weekday, from: days[0].date), calendar.firstWeekday)
+        try expectEqual(activity.week.totalSessions, 3)
+        try expectEqual(activity.week.totalDuration, 3_030)
+        try expectEqual(activity.week.activeDays, 2)
+        try expectEqual(days.first { $0.date == calendar.startOfDay(for: now) }?.duration, 3_000)
+        try expectEqual(days.first { $0.date == calendar.startOfDay(for: yesterday) }?.duration, 30)
+        calendar.firstWeekday = 2
+        let mondayFirst = FocusActivity(records: records, through: now, calendar: calendar)
+        try expectEqual(calendar.component(.weekday, from: mondayFirst.week.startDate), 2)
+        try expectEqual(mondayFirst.week.days.filter(\.isInRange).count, 2)
+        try expectEqual(mondayFirst.week.totalDuration, 3_030)
     }
 
     static func activityTimeZone() throws {
@@ -262,102 +231,62 @@ struct FocusTimerTests {
             SessionRecord(finishedAt: formatter.date(from: $0)!, duration: 1_500, intention: "Local day")
         }
         let activity = FocusActivity(records: records, through: now, calendar: calendar)
-        let days = activity.weeks.flatMap { $0 }
-        try expectEqual(activity.activeDays, 2)
-        try expectEqual(activity.totalDuration, 4_500)
+        let days = activity.month.days
+        try expectEqual(activity.month.activeDays, 2)
+        try expectEqual(activity.month.totalDuration, 4_500)
         let march8 = calendar.startOfDay(for: formatter.date(from: "2026-03-08T16:00:00Z")!)
         try expectEqual(days.first { $0.date == march8 }?.sessions, 2)
         try expectEqual(days.allSatisfy { calendar.component(.hour, from: $0.date) == 0 }, true)
     }
 
-    static func gardenGrowth() throws {
-        func day(_ duration: TimeInterval) -> ActivityDay {
-            ActivityDay(date: start, duration: duration, sessions: duration > 0 ? 1 : 0, isInRange: true)
-        }
-        try expectEqual(day(0).flowers, 0)
-        try expectEqual(day(1).flowers, 1)
-        try expectEqual(day(0).planting.isEmpty, true)
-        try expectEqual(day(1_200).bushes, 1)
-        try expectEqual(day(600).trees, 0)
-        try expectEqual(day(1_499).trees, 0)
-        try expectEqual(day(1_500).trees, 1)
-        try expectEqual(day(7_200).trees > day(1_500).trees, true)
-        try expectEqual(day(14_400).planting.count > day(3_600).planting.count, true)
-
-        let variedDays = (0..<30).map { offset in
-            ActivityDay(date: start.addingTimeInterval(Double(offset) * 86_400), duration: 7_200, sessions: 4, isInRange: true)
-        }
-        try expectEqual(Set(variedDays.map(\.habitat)), Set(GardenHabitat.allCases))
-        try expectEqual(Set(variedDays.map(\.flowers)).count > 1, true)
-        try expectEqual(variedDays.contains(where: \.hasHive), true)
-        try expectEqual(variedDays.contains(where: \.hasFox), true)
-        try expectEqual(variedDays.allSatisfy { !($0.hasHive && $0.hasFox) }, true)
-        for original in variedDays {
-            let rebuilt = ActivityDay(date: original.date, duration: original.duration, sessions: original.sessions, isInRange: true)
-            try expectEqual(original.plantingSeed, rebuilt.plantingSeed)
-            try expectEqual(original.planting, rebuilt.planting)
-            let future = ActivityDay(date: original.date, duration: 10_800, sessions: 6, isInRange: false)
-            try expectEqual(future.planting.isEmpty && future.trees == 0 && !future.hasFox && !future.hasHive, true)
-            var previous = (flowers: 0, bushes: 0, trees: 0)
-            for minutes in stride(from: 0, through: 360, by: 5) {
-                let grown = ActivityDay(date: original.date, duration: Double(minutes * 60), sessions: 1, isInRange: true)
-                try expectEqual(grown.flowers >= previous.flowers && grown.bushes >= previous.bushes && grown.trees >= previous.trees, true)
-                previous = (grown.flowers, grown.bushes, grown.trees)
-            }
-            let mature = ActivityDay(date: original.date, duration: 1_000_000, sessions: 50, isInRange: true)
-            try expectEqual(mature.planting.count <= 40, true)
-            try expectEqual(mature.planting.allSatisfy { abs($0.x) <= 0.45 && abs($0.z) <= 0.45 && $0.height > 0 && $0.height <= 1.2 }, true)
-            for plant in original.planting {
-                guard let rooted = mature.planting.first(where: { $0.id == plant.id }) else {
-                    throw TestFailure(description: "Growing a habitat removed an existing plant")
-                }
-                try expectEqual(rooted.x, plant.x)
-                try expectEqual(rooted.z, plant.z)
-                try expectEqual(rooted.kind, plant.kind)
-                try expectEqual(rooted.rotation, plant.rotation)
-                try expectEqual(rooted.height >= plant.height, true)
-            }
-        }
-    }
-
     static func activityHistory() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/New_York")!
-        let now = ISO8601DateFormatter().date(from: "2026-03-12T16:00:00Z")!
+        let now = ISO8601DateFormatter().date(from: "2024-03-12T16:00:00Z")!
         let current = FocusActivity(records: [], through: now, calendar: calendar)
-        let records = [current.startDate.addingTimeInterval(-1), current.startDate, now].map {
+        let records = [current.month.startDate.addingTimeInterval(-1), current.month.startDate, now].map {
             SessionRecord(finishedAt: $0, duration: 1_500, intention: "Boundary")
         }
-        let history = FocusActivity(records: records, through: now, calendar: calendar, weekOffset: -3)
+        let history = FocusActivity(records: records, through: now, calendar: calendar, monthOffset: -1)
         let live = FocusActivity(records: records, through: now, calendar: calendar)
-        try expectEqual(history.totalSessions, 1)
-        try expectEqual(live.totalSessions, 2)
-        try expectEqual(history.weeks.flatMap { $0 }.filter(\.isInRange).count, 21)
-        try expectEqual(calendar.date(byAdding: .day, value: 1, to: history.endDate), live.startDate)
-        try expectEqual(Set(history.weeks.flatMap { $0 }.map(\.date)).isDisjoint(with: live.weeks.flatMap { $0 }.map(\.date)), true)
-        let older = FocusActivity(records: records, through: now, calendar: calendar, weekOffset: -6)
-        try expectEqual(older.totalSessions, 0)
-        let clamped = FocusActivity(records: records, through: now, calendar: calendar, weekOffset: 3)
-        try expectEqual(clamped.startDate, live.startDate)
-        let overlap = FocusActivity(records: records, through: now, calendar: calendar, weekOffset: -1)
-        for day in overlap.weeks.flatMap({ $0 }) {
-            if let sameDay = live.weeks.flatMap({ $0 }).first(where: { $0.date == day.date }) {
-                try expectEqual(day.planting, sameDay.planting)
-            }
-        }
+        try expectEqual(history.month.totalSessions, 1)
+        try expectEqual(history.month.days.count, 29)
+        try expectEqual(history.month.dailyAverage, 1_500 / 29)
+        try expectEqual(live.month.totalSessions, 2)
+        try expectEqual(live.month.dailyAverage, 250)
+        try expectEqual(history.month.endDate, live.month.startDate)
+        try expectEqual(Set(history.month.days.map(\.date)).isDisjoint(with: live.month.days.map(\.date)), true)
+        try expectEqual(history.allTimeDuration, live.allTimeDuration)
+        try expectEqual(live.canGoToPreviousMonth, true)
+        try expectEqual(history.canGoToPreviousMonth, false)
+        let older = FocusActivity(records: records, through: now, calendar: calendar, monthOffset: -2)
+        try expectEqual(older.month.totalSessions, 0)
+        let clamped = FocusActivity(records: records, through: now, calendar: calendar, weekOffset: 3, monthOffset: 3)
+        try expectEqual(clamped.month.startDate, live.month.startDate)
+        try expectEqual(clamped.week.startDate, live.week.startDate)
+        let previousWeek = FocusActivity(records: records, through: now, calendar: calendar, weekOffset: -1)
+        try expectEqual(previousWeek.week.endDate, live.week.startDate)
+        let january = ISO8601DateFormatter().date(from: "2026-01-31T16:00:00Z")!
+        let december = FocusActivity(records: [], through: january, calendar: calendar, monthOffset: -1)
+        try expectEqual(calendar.component(.year, from: december.month.startDate), 2025)
+        try expectEqual(calendar.component(.month, from: december.month.startDate), 12)
+        try expectEqual(december.month.days.count, 31)
     }
 
     static func invalidActivity() throws {
-        let records = [0, -30, .infinity, .nan, 60].map {
+        var records = [0, -30, .infinity, .nan, 60].map {
             SessionRecord(finishedAt: start, duration: $0, intention: "Imported record")
         }
+        records.append(SessionRecord(finishedAt: start.addingTimeInterval(1), duration: 1_500, intention: "Future"))
         let activity = FocusActivity(records: records, through: start)
-        try expectEqual(activity.totalDuration, 60)
-        try expectEqual(activity.totalSessions, 1)
-        try expectEqual(activity.activeDays, 1)
+        try expectEqual(activity.week.totalDuration, 60)
+        try expectEqual(activity.month.totalSessions, 1)
+        try expectEqual(activity.month.activeDays, 1)
+        try expectEqual(activity.allTimeDuration, 60)
+        try expectEqual(FocusRoom(records: records, through: start).nourishment, 60)
         for duration in [Double.nan, .infinity, -1] {
             let day = ActivityDay(date: start, duration: duration, sessions: 0, isInRange: true)
-            try expectEqual(day.planting.isEmpty, true)
+            try expectEqual(day.duration, 0)
         }
     }
 

@@ -4,12 +4,11 @@ import Observation
 import UserNotifications
 
 enum StudioSection: String, CaseIterable, Identifiable {
-    case studio = "Studio", sessions = "Activity", settings = "Settings"
+    case sessions = "Activity", settings = "Settings"
     var id: String { rawValue }
     var symbol: String {
         switch self {
-        case .studio: "headphones"
-        case .sessions: "leaf"
+        case .sessions: "house"
         case .settings: "gearshape"
         }
     }
@@ -23,7 +22,10 @@ private struct SessionArchive: Codable {
 
 @MainActor @Observable
 final class AppModel {
-    var section: StudioSection = .studio
+    var section: StudioSection = .sessions
+    var menuBarShowsRoom = false {
+        didSet { defaults.set(menuBarShowsRoom, forKey: "menuBar.showsRoom") }
+    }
     var preferences: Preferences {
         didSet {
             if let data = try? JSONEncoder().encode(preferences) {
@@ -57,6 +59,7 @@ final class AppModel {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        menuBarShowsRoom = defaults.bool(forKey: "menuBar.showsRoom")
         player = RadioPlayer(defaults: defaults)
         let preferences = defaults.data(forKey: "preferences.v1")
             .flatMap { try? JSONDecoder().decode(Preferences.self, from: $0) } ?? Preferences()

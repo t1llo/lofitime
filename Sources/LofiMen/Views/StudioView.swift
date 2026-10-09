@@ -11,12 +11,7 @@ struct StudioView: View {
             sidebar.frame(width: 144)
             Rectangle().fill(theme.line).frame(width: 1)
             Group {
-                if model.section == .studio {
-                    VideoFocusScene(model: model, presentation: .studio)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.white.opacity(0.08)))
-                        .padding(16).padding(.top, 12)
-                } else if model.section == .sessions {
+                if model.section == .sessions {
                     SessionsView(model: model)
                         .padding(.top, 28)
                 } else {
@@ -44,8 +39,7 @@ struct StudioView: View {
                 Text("lofitime").font(.room(size: 16, weight: .medium)).tracking(-0.5)
             }.padding(.horizontal, 4).padding(.top, 51).padding(.bottom, 34)
 
-            navigationItem(.studio)
-            navigationItem(.sessions).padding(.top, 5)
+            navigationItem(.sessions)
 
             Spacer(minLength: 20)
 

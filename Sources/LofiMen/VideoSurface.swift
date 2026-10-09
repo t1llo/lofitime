@@ -31,12 +31,23 @@ enum VideoGeometry {
 final class VideoSurfaceRouter {
     private struct WeakSurface { weak var value: VideoSurfaceView? }
     private let webView: WKWebView
+    private let backgroundHost = NSView(frame: CGRect(x: 0, y: 0, width: 320, height: 180))
+    private let backgroundWindow: NSWindow
     private var surfaces: [WeakSurface] = []
     private(set) weak var activeSurface: VideoSurfaceView?
     private(set) var isInteractive = false
     private(set) var isVideoVisible = false
 
-    init(webView: WKWebView) { self.webView = webView }
+    init(webView: WKWebView) {
+        self.webView = webView
+        // A retained, never-shown native host lets WebKit load a new station even
+        // when the popup is showing the room and there is no visible video view.
+        backgroundWindow = NSWindow(contentRect: backgroundHost.frame, styleMask: .borderless, backing: .buffered, defer: false)
+        backgroundWindow.isReleasedWhenClosed = false
+        backgroundWindow.isExcludedFromWindowsMenu = true
+        backgroundWindow.contentView = backgroundHost
+        refresh()
+    }
 
     func register(_ surface: VideoSurfaceView) {
         surfaces.removeAll { $0.value == nil || $0.value === surface }
@@ -59,6 +70,11 @@ final class VideoSurfaceRouter {
             // Keep audio attached, but don't retain a full-window rendering surface
             // when every host is closed, minimized or covered by other windows.
             isVideoVisible = false
+            activeSurface = nil
+            if webView.superview !== backgroundHost {
+                webView.removeFromSuperview()
+                backgroundHost.addSubview(webView)
+            }
             webView.frame = CGRect(x: 0, y: 0, width: 320, height: 180)
             setInteractive(false)
             return

@@ -25,15 +25,17 @@ Requires **macOS 14 or later**. Open the DMG and drag **Lofitime.app** into **Ap
 - **Live lo-fi radio:** Chill house (default), Study lo-fi, Sleepy lo-fi, and Synthwave.
 - **Headphone-aware playback:** music pauses when wired, Bluetooth, or USB headphones disconnect. Press Play to resume; your focus timer keeps running.
 - **Focus timers:** customizable Pomodoro cycles and editable countdowns.
-- **Focus forest:** grow wildflower meadows, birch groves, pine woodland, and fern glades on a connected landscape. Short sessions plant shoots, 25 minutes roots a tree, and longer focus grows a richer habitat with local wildlife. Each day's plants stay rooted as it grows.
-- **Activity history:** see focus time, completed sessions, and active days; browse older three-week windows, hover for daily totals, and click a clearing for its sessions. Scroll or pinch to zoom, drag to pan, and click the zoom percentage to recenter. History stays saved locally.
-- **Native macOS:** a compact studio, menu-bar player, completion notifications, and five coordinated themes: Candlelight, Catppuccin, Moss, Moonlight, and Rosewood.
+- **Your little study:** a side-view 3D room with a desk, computer, window, and bed. Recent focus grows plants and flowers, fills bookshelves, and adds warm lamps, a reading nook, candles, keepsakes, and fairy lights. Scroll or pinch to zoom, drag to explore, and double-click to reset the view.
+- **A room that grows with you:** completed sessions nourish one shared room over the last seven days. Each session contributes fully for three days, then gently fades over the next four. After a week without focus the room returns to its essentials; your saved history and totals always remain.
+- **Stats on your desktop:** choose **View stats** to move into the room's computer screen. Explore weekly bars, monthly totals, active days, sessions, daily averages, and all-time focus. Click a day for its sessions, then **Back to room** to return to your previous view. Everything stays saved locally.
+- **A room in your menu bar:** one button switches between music/timer controls and your cozy room, with quick timer and music controls. Your chosen view is remembered.
+- **Native macOS:** Activity and Settings in the full app, a menu-bar player, completion notifications, and five coordinated themes: Candlelight, Catppuccin, Moss, Moonlight, and Rosewood.
 - **Convenience:** launch at login, automatic updates, and optional automatic breaks.
 - **Video quality:** choose an available resolution through YouTube's player in Settings.
 
 ## Using Lofitime
 
-Choose a station and press **Play music**, or **Start focus** to begin a timer. Music and timers work independently; closing the studio keeps Lofitime in your menu bar.
+In the menu-bar popup, choose a station and press **Play music**, or **Start focus** to begin a timer. Use the house/headphones button to switch to your room and back. Music and timers work independently; closing the app window keeps Lofitime in your menu bar.
 
 Enter `45` or `25:30` into a paused countdown to change its duration. Open **Activity** for completed sessions and **Settings** for timer defaults, themes, and startup preferences. Radio playback requires an internet connection.
 
@@ -53,7 +55,8 @@ The app is built at **`build/Lofitime.app`**. Local builds use an ad-hoc signatu
 | `make check` | Test, build, and verify the app bundle |
 | `make dev` | Launch a debug build |
 | `make smoke` | Check native controls and live playback |
-| `make activity-smoke` | Check activity, garden interaction, themes, and saved sessions offline |
+| `make activity-smoke` | Check room growth, weekly/monthly history, themes, and saved sessions offline |
+| `make activity-preview` | Render all room stages and activity themes offline |
 | `make audio-smoke` | Simulate headphone loss during live playback and check pause/resume |
 | `make preview` | Save screenshots to `build/previews/` |
 | `make help` | List commands |
@@ -67,10 +70,12 @@ GitHub Actions checks builds and scans Git history with Gitleaks on every push a
 | `⌘ Return` | Start / pause / resume the timer |
 | `⌘ ⇧ P` | Play / pause music |
 | `⌘ ⇧ R` | Reset the current session |
-| `⌘ 1` | Open the studio |
+| `⌘ 1` | Open your room |
 | `⌘ 2` | View activity |
 | `⌘ ,` | Open settings |
 | `⌘ Q` | Quit |
+
+With the room focused, use `+` / `−` to zoom, arrow keys to move, and `0` to reset.
 
 ## Third-party notices
 

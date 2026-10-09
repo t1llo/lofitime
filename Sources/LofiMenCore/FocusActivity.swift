@@ -13,55 +13,61 @@ public struct ActivityDay: Identifiable, Sendable {
         self.sessions = max(0, sessions)
         self.isInRange = isInRange
     }
-
-    public var level: Int {
-        switch duration {
-        case ...0: 0
-        case ..<1_500: 1
-        case ..<3_600: 2
-        case ..<7_200: 3
-        default: 4
-        }
-    }
 }
 
-/// Three complete Sunday-first rows, ending with the current week or a historical week.
-public struct FocusActivity: Sendable {
-    public static let historyWeeks = 3
-    public static let historyDays = historyWeeks * 7
-    public let weeks: [[ActivityDay]]
+/// Calendar-based totals. The end is exclusive, so adjacent periods never double-count a session.
+public struct ActivityPeriod: Sendable {
+    public let days: [ActivityDay]
     public let startDate: Date
     public let endDate: Date
     public let totalDuration: TimeInterval
     public let totalSessions: Int
     public let activeDays: Int
+    public var dailyAverage: TimeInterval { totalDuration / Double(max(1, days.filter(\.isInRange).count)) }
 
-    /// A negative offset browses older weeks without treating later records as part of that window.
-    public init(records: [SessionRecord], through now: Date, calendar: Calendar = .current, weekOffset: Int = 0) {
+    init(records: [SessionRecord], interval: DateInterval, now: Date, calendar: Calendar) {
+        startDate = interval.start
+        endDate = interval.end
         let today = calendar.startOfDay(for: now)
-        let thisWeek = calendar.date(byAdding: .day, value: 1 - calendar.component(.weekday, from: today), to: today)!
-        let currentWeekStart = calendar.date(byAdding: .weekOfYear, value: min(0, weekOffset), to: thisWeek)!
-        let startDate = calendar.date(byAdding: .day, value: -(Self.historyWeeks - 1) * 7, to: currentWeekStart)!
-        let nextWeek = calendar.date(byAdding: .day, value: 7, to: currentWeekStart)!
-        self.endDate = min(today, calendar.date(byAdding: .day, value: -1, to: nextWeek)!)
-        self.startDate = startDate
-        let visible = records.filter {
-            $0.duration.isFinite && $0.duration > 0 &&
-                $0.finishedAt >= startDate && $0.finishedAt < nextWeek && $0.finishedAt <= now
-        }
+        let visible = records.filter { $0.finishedAt >= interval.start && $0.finishedAt < interval.end }
         let grouped = Dictionary(grouping: visible) { calendar.startOfDay(for: $0.finishedAt) }
-        let gridDayCount = Self.historyDays
-        let days = (0..<gridDayCount).map { offset in
-            let date = calendar.date(byAdding: .day, value: offset, to: startDate)!
+        let count = calendar.dateComponents([.day], from: interval.start, to: interval.end).day ?? 0
+        days = (0..<count).map { offset in
+            let date = calendar.date(byAdding: .day, value: offset, to: interval.start)!
             let sessions = grouped[date] ?? []
             return ActivityDay(date: date,
-                               duration: sessions.reduce(0) { $0 + max(0, $1.duration) },
-                               sessions: sessions.count,
-                               isInRange: date <= today)
+                               duration: sessions.reduce(0) { $0 + $1.duration },
+                               sessions: sessions.count, isInRange: date <= today)
         }
-        weeks = stride(from: 0, to: days.count, by: 7).map { Array(days[$0..<($0 + 7)]) }
-        totalDuration = visible.reduce(0) { $0 + max(0, $1.duration) }
+        totalDuration = visible.reduce(0) { $0 + $1.duration }
         totalSessions = visible.count
-        activeDays = days.filter { $0.isInRange && $0.sessions > 0 }.count
+        activeDays = days.filter { $0.sessions > 0 }.count
+    }
+}
+
+/// The room uses recent focus; these permanent statistics always use the complete saved history.
+public struct FocusActivity: Sendable {
+    public let endDate: Date
+    public let updatedAt: Date
+    public let week: ActivityPeriod
+    public let month: ActivityPeriod
+    public let allTimeDuration: TimeInterval
+    public let firstSessionDate: Date?
+    public var canGoToPreviousWeek: Bool { firstSessionDate.map { $0 < week.startDate } ?? false }
+    public var canGoToPreviousMonth: Bool { firstSessionDate.map { $0 < month.startDate } ?? false }
+
+    public init(records: [SessionRecord], through now: Date, calendar: Calendar = .current,
+                weekOffset: Int = 0, monthOffset: Int = 0) {
+        let valid = records.filter { $0.duration.isFinite && $0.duration > 0 && $0.finishedAt <= now }
+        updatedAt = now
+        endDate = calendar.startOfDay(for: now)
+        let thisWeek = calendar.dateInterval(of: .weekOfYear, for: now)!
+        let weekDate = calendar.date(byAdding: .weekOfYear, value: min(0, weekOffset), to: thisWeek.start)!
+        let thisMonth = calendar.dateInterval(of: .month, for: now)!
+        let monthDate = calendar.date(byAdding: .month, value: min(0, monthOffset), to: thisMonth.start)!
+        week = ActivityPeriod(records: valid, interval: calendar.dateInterval(of: .weekOfYear, for: weekDate)!, now: now, calendar: calendar)
+        month = ActivityPeriod(records: valid, interval: calendar.dateInterval(of: .month, for: monthDate)!, now: now, calendar: calendar)
+        allTimeDuration = valid.reduce(0) { $0 + $1.duration }
+        firstSessionDate = valid.map(\.finishedAt).min()
     }
 }

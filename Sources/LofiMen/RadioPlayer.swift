@@ -317,6 +317,7 @@ final class RadioPlayer: NSObject, WKNavigationDelegate {
             .replacingOccurrences(of: "__VOLUME__", with: String(Int(volume * 100)))
             .replacingOccurrences(of: "__LOAD_ID__", with: loadID)
         // A stable HTTPS base URL supplies the referrer required by YouTube embeds.
+        surfaces.refresh()
         webView.loadHTMLString(html, baseURL: URL(string: "https://com.lofimen.app"))
         loadTimeout?.cancel()
         loadTimeout = Task { [weak self] in

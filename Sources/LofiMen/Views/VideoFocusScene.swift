@@ -1,12 +1,13 @@
 import LofiMenCore
 import SwiftUI
 
-/// One edge-to-edge live scene, used by both the compact studio and menu-bar panel.
+/// The music side of the menu-bar popup.
 struct VideoFocusScene: View {
     @Environment(\.roomTheme) private var theme
     @Bindable var model: AppModel
     let presentation: VideoPresentation
     var openStudio: (() -> Void)?
+    var showRoom: (() -> Void)?
     private var compact: Bool { presentation == .menuBar }
 
     var body: some View {
@@ -60,8 +61,12 @@ struct VideoFocusScene: View {
                 .help("Choose a genre").accessibilityLabel("Genre: \(model.player.station.title)")
             Spacer(minLength: 0)
             if compact {
+                if let showRoom {
+                    OverlayIconButton(symbol: "house", label: "Show my cozy room", size: 30, action: showRoom)
+                        .accessibilityIdentifier("menu-bar-room-toggle")
+                }
                 if let openStudio {
-                    OverlayIconButton(symbol: "slider.horizontal.3", label: "Open Studio settings", size: 30, action: openStudio)
+                    OverlayIconButton(symbol: "slider.horizontal.3", label: "Open settings", size: 30, action: openStudio)
                         .accessibilityIdentifier("menu-bar-settings")
                 }
                 Menu {

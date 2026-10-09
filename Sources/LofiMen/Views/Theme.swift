@@ -7,16 +7,6 @@ extension Font {
     }
 }
 
-struct GardenPalette {
-    let soil: UInt32
-    let clearing: UInt32
-    let grass: UInt32
-    let leaf: UInt32
-    let pine: UInt32
-    let path: UInt32
-    let sunlight: UInt32
-}
-
 struct RoomTheme {
     let background: Color
     let sidebar: Color
@@ -29,16 +19,13 @@ struct RoomTheme {
     let line: Color
     let amber: Color
     let activity: Color
-    let garden: GardenPalette
 
     static let candlelight = RoomTheme(
         background: Color(hex: 0x211F1C), sidebar: Color(hex: 0x191815), surface: Color(hex: 0x2B2923),
         elevated: Color(hex: 0x38352D), accent: Color(hex: 0xDFBC87),
         text: Color(hex: 0xF3EDE1), secondary: Color(hex: 0xCFC5B3),
         muted: Color(hex: 0xAA9F8D), line: Color(hex: 0x625A48).opacity(0.55),
-        amber: Color(hex: 0xE7B478), activity: Color(hex: 0xAABD92),
-        garden: GardenPalette(soil: 0x665443, clearing: 0x888667, grass: 0x82916A,
-                              leaf: 0x819E61, pine: 0x4C735F, path: 0xC0AD85, sunlight: 0xFFF0D5)
+        amber: Color(hex: 0xE7B478), activity: Color(hex: 0xAABD92)
     )
 
     static let catppuccin = RoomTheme(
@@ -46,9 +33,7 @@ struct RoomTheme {
         elevated: Color(hex: 0x36364B), accent: Color(hex: 0xCBA6F7),
         text: Color(hex: 0xE1E5F5), secondary: Color(hex: 0xBAC2DE),
         muted: Color(hex: 0xA0A5BE), line: Color(hex: 0x585B70).opacity(0.65),
-        amber: Color(hex: 0xF9E2AF), activity: Color(hex: 0xA6D3AB),
-        garden: GardenPalette(soil: 0x5A5062, clearing: 0x7D8190, grass: 0x7B9589,
-                              leaf: 0x8CAF8B, pine: 0x557D78, path: 0xB5ACBB, sunlight: 0xECE6FF)
+        amber: Color(hex: 0xF9E2AF), activity: Color(hex: 0xA6D3AB)
     )
 
     static let moss = RoomTheme(
@@ -56,9 +41,7 @@ struct RoomTheme {
         elevated: Color(hex: 0x303E34), accent: Color(hex: 0xB8CE9B),
         text: Color(hex: 0xE8EEDF), secondary: Color(hex: 0xC1CCB9),
         muted: Color(hex: 0x9DAD99), line: Color(hex: 0x52654F).opacity(0.6),
-        amber: Color(hex: 0xDAC58B), activity: Color(hex: 0xA3C58C),
-        garden: GardenPalette(soil: 0x4D5740, clearing: 0x7C896A, grass: 0x7B996C,
-                              leaf: 0x94B378, pine: 0x426F58, path: 0xB5B18B, sunlight: 0xEDF4D7)
+        amber: Color(hex: 0xDAC58B), activity: Color(hex: 0xA3C58C)
     )
 
     static let moonlight = RoomTheme(
@@ -66,9 +49,7 @@ struct RoomTheme {
         elevated: Color(hex: 0x303F50), accent: Color(hex: 0xA5C9D7),
         text: Color(hex: 0xE6EDF2), secondary: Color(hex: 0xBDCCD8),
         muted: Color(hex: 0x9AACBD), line: Color(hex: 0x52677C).opacity(0.6),
-        amber: Color(hex: 0xE3C896), activity: Color(hex: 0x94C1B3),
-        garden: GardenPalette(soil: 0x485666, clearing: 0x738D92, grass: 0x71958D,
-                              leaf: 0x90B4A6, pine: 0x497872, path: 0xA4B8BD, sunlight: 0xDCEEFF)
+        amber: Color(hex: 0xE3C896), activity: Color(hex: 0x94C1B3)
     )
 
     static let rosewood = RoomTheme(
@@ -76,9 +57,7 @@ struct RoomTheme {
         elevated: Color(hex: 0x44373F), accent: Color(hex: 0xDFB0B5),
         text: Color(hex: 0xF3E6E8), secondary: Color(hex: 0xD5BFC8),
         muted: Color(hex: 0xB69EA9), line: Color(hex: 0x745763).opacity(0.55),
-        amber: Color(hex: 0xE5BF97), activity: Color(hex: 0xB3C39F),
-        garden: GardenPalette(soil: 0x68514F, clearing: 0x948577, grass: 0x8F9B78,
-                              leaf: 0xB0B181, pine: 0x607D6A, path: 0xC8AA9D, sunlight: 0xFFE4DD)
+        amber: Color(hex: 0xE5BF97), activity: Color(hex: 0xB3C39F)
     )
 
     func activityColor(level: Int) -> Color {

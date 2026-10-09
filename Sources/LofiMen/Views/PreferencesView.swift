@@ -154,7 +154,7 @@ struct VideoQualityView: View {
                 Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
                     .accessibilityIdentifier("video-quality-done")
             }
-            Text("Start playback if needed, then use the gear → Quality to choose a resolution. The same player supplies the studio and menu-bar previews.")
+            Text("Start playback if needed, then use the gear → Quality to choose a resolution. This is the same player used by the menu-bar popup.")
                 .font(.caption).foregroundStyle(.secondary)
             RadioWebView(player: player, presentation: .quality, fillsBounds: false)
                 .frame(width: 560, height: 315)
