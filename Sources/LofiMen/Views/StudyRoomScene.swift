@@ -158,7 +158,8 @@ struct StudyRoomScene: NSViewRepresentable {
                 let width = corners.map(\.x).max()! - corners.map(\.x).min()!
                 let height = corners.map(\.y).max()! - corners.map(\.y).min()!
                 scale = max(height / 2, width / (bounds.width / bounds.height) / 2) * 1.035 / cameraState.zoom
-                let radius = sqrt(5.4 * 5.4 + 2.55 * 2.55 + 12 * 12)
+                let horizontalRadius: Double = hypot(5.4, 12)
+                let radius: Double = hypot(horizontalRadius, 2.55)
                 let azimuth = atan2(5.4, 12) + cameraState.yaw
                 let elevation = asin(2.55 / radius) + cameraState.pitch
                 destination.position = SCNVector3(radius * cos(elevation) * sin(azimuth),
