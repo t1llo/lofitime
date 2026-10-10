@@ -11,6 +11,7 @@
     <key>CFBundleVersion</key><string>1</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>LSUIElement</key><true/>
     <key>SUFeedURL</key><string>https://github.com/t1llo/lofitime/releases/latest/download/appcast.xml</string>
     <key>SUPublicEDKey</key><string>9cqTlVHOTN7K0dnObTkaU6b5eAggO6K2rWlDasxPopI=</string>
     <key>SUEnableAutomaticChecks</key><true/>

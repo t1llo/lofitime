@@ -7,7 +7,6 @@ struct MenuBarView: View {
     static let contentSize = CGSize(width: 320, height: 360)
     static let cornerRadius: CGFloat = 20
     @Bindable var model: AppModel
-    @Environment(\.openWindow) private var openWindow
     @State private var popupWindow = PopupWindowReference()
     private var theme: RoomTheme { model.preferences.appearance.palette }
 
@@ -98,8 +97,7 @@ struct MenuBarView: View {
     private func show(_ section: StudioSection) {
         model.section = section
         popupWindow.window?.orderOut(nil)
-        openWindow(id: "studio")
-        NSApp.activate(ignoringOtherApps: true)
+        AppDelegate.openStudio?()
     }
 }
 

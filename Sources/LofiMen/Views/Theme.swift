@@ -172,9 +172,15 @@ extension AppResources {
 
     @MainActor static func dockIcon(for theme: RoomTheme) -> NSImage {
         let artwork = themedIcon(for: theme)
-        // Match the packaged icon's 100px inset on a 1024px canvas.
+        // Match create-icon.swift: macOS inset and continuous (not circular) corners.
         return NSImage(size: NSSize(width: 512, height: 512), flipped: false) { bounds in
-            artwork.draw(in: bounds.insetBy(dx: bounds.width * 100 / 1024, dy: bounds.height * 100 / 1024))
+            let frame = bounds.insetBy(dx: bounds.width * 100 / 1024, dy: bounds.height * 100 / 1024)
+            guard let context = NSGraphicsContext.current?.cgContext else { return false }
+            context.saveGState()
+            context.addPath(RoundedRectangle(cornerRadius: frame.width * 0.225, style: .continuous).path(in: frame).cgPath)
+            context.clip()
+            artwork.draw(in: frame)
+            context.restoreGState()
             return true
         }
     }

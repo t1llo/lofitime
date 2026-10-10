@@ -3,7 +3,6 @@ import SwiftUI
 
 struct StudioView: View {
     @Bindable var model: AppModel
-    @Environment(\.openWindow) private var openWindow
     private var theme: RoomTheme { model.preferences.appearance.palette }
 
     var body: some View {
@@ -38,7 +37,6 @@ struct StudioView: View {
         .frame(minWidth: 660, minHeight: 500)
         .ignoresSafeArea(.container, edges: .top)
         .onAppear {
-            AppDelegate.openStudio = { openWindow(id: "studio") }
             model.sync.refreshIfNeeded()
         }
     }

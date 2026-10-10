@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 let source = URL(fileURLWithPath: CommandLine.arguments.count > 2 ? CommandLine.arguments[2] : "assets/icon.png")
 guard let image = NSImage(contentsOf: source) else { fatalError("Cannot load app icon: \(source.path)") }
@@ -13,8 +14,12 @@ func drawIcon(pixels: Int) -> Data {
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
     NSGraphicsContext.current?.imageInterpolation = .high
-    // macOS icon artwork sits inside an 824px square on the 1024px canvas.
-    image.draw(in: NSRect(x: 100, y: 100, width: 824, height: 824),
+    // Match AppResources.dockIcon: macOS artwork inset and continuous corners.
+    let frame = NSRect(x: 100, y: 100, width: 824, height: 824)
+    let context = NSGraphicsContext.current!.cgContext
+    context.addPath(RoundedRectangle(cornerRadius: frame.width * 0.225, style: .continuous).path(in: frame).cgPath)
+    context.clip()
+    image.draw(in: frame,
                from: .zero, operation: .copy, fraction: 1)
     NSGraphicsContext.restoreGraphicsState()
     return rep.representation(using: .png, properties: [:])!

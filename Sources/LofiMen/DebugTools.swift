@@ -32,20 +32,19 @@ enum DebugTools {
     @MainActor static func prepareLaunch() {
         #if DEBUG
         guard requested else { return }
-        // SwiftUI can restore a menu-bar-only launch after the previous window was closed.
-            // Diagnostics need a window even in that case, before its .task can run.
+        // Verify the real launch policy before opening the optional window for diagnostics.
+        guard NSApp.activationPolicy() == .accessory,
+              !NSApp.windows.contains(where: { $0.title == "Lofitime" && $0.isVisible }) else {
+            smokeFailure("Launch opened a studio window or added a Dock icon"); return
+        }
+        print("PASS: launch stays in the menu bar without a studio window or Dock icon")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             guard !hasRun else { return }
-            if let window = NSApp.windows.first(where: { $0.title == "Lofitime" }) {
-                window.makeKeyAndOrderFront(nil)
-            } else if let menu = NSApp.mainMenu?.items.compactMap(\.submenu).first(where: {
-                $0.items.contains(where: { $0.title == "Open My Room" })
-            }), let index = menu.items.firstIndex(where: { $0.title == "Open My Room" }) {
-                menu.performActionForItem(at: index)
+            if let openStudio = AppDelegate.openStudio {
+                openStudio()
             } else {
                 smokeFailure("Could not open the studio for native diagnostics")
             }
-            NSApp.activate(ignoringOtherApps: true)
         }
         #endif
     }
@@ -61,6 +60,15 @@ enum DebugTools {
                     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
                     for appearance in AppAppearance.allCases {
                         try await renderActivityExample(to: directory.appendingPathComponent("activity-\(appearance.rawValue).png"), appearance: appearance)
+                        if appearance == .tokyoNight {
+                            try await renderActivityExample(to: directory.appendingPathComponent("statistics-tokyoNight.png"),
+                                                            appearance: appearance, showStats: true)
+                        }
+                        if let tiff = AppResources.dockIcon(for: appearance.palette).tiffRepresentation,
+                           let bitmap = NSBitmapImageRep(data: tiff),
+                           let png = bitmap.representation(using: .png, properties: [:]) {
+                            try png.write(to: directory.appendingPathComponent("dock-\(appearance.rawValue).png"))
+                        }
                     }
                     try await renderActivityExample(to: directory.appendingPathComponent("activity-compact.png"), appearance: .candlelight,
                                                     size: CGSize(width: 700, height: 540))
@@ -902,18 +910,39 @@ enum DebugTools {
             }
         }
         model.menuBarShowsRoom = false
+        model.setDuration(600)
+        model.toggleTimer()
+        let remaining = model.timer.remaining(at: Date())
         studio.close()
         panel.makeKeyAndOrderFront(nil)
-        try? await Task.sleep(for: .milliseconds(300))
+        try? await Task.sleep(for: .milliseconds(1200))
+        model.tick()
+        guard NSApp.activationPolicy() == .accessory, !studio.isVisible,
+              model.timer.status == .running, model.timer.remaining(at: Date()) < remaining else {
+            smokeFailure("Closing the studio left a Dock icon or stopped the menu-bar timer"); return
+        }
         guard await click("menu-bar-stats", in: panel) else { return }
         try? await Task.sleep(for: .milliseconds(900))
         guard let reopened = NSApp.windows.first(where: { $0.title == "Lofitime" && $0.isVisible }),
+               NSApp.activationPolicy() == .regular,
               accessibilityElement("activity-week-total", in: reopened) != nil,
               await click("navigation-Room", in: reopened) else {
             smokeFailure("The Stats shortcut could not reopen a closed full window"); return
         }
+        reopened.miniaturize(nil)
+        try? await Task.sleep(for: .milliseconds(400))
+        guard NSApp.activationPolicy() == .regular else {
+            smokeFailure("Minimizing the open window removed its Dock icon"); return
+        }
+        AppDelegate.openStudio?()
+        try? await Task.sleep(for: .milliseconds(400))
+        guard reopened.isVisible, !reopened.isMiniaturized else {
+            smokeFailure("Opening the room did not restore the minimized window"); return
+        }
+        model.resetTimer()
         panel.makeKeyAndOrderFront(nil)
         print("PASS: popup shortcuts open the right page, dismiss either popup view, and reopen a closed full window")
+        print("PASS: Dock follows the main window; closing keeps the timer running and minimizing/reopening works")
     }
 
     @MainActor private static func smokeRoomGestures(_ room: StudyRoomScene.RoomView, in window: NSWindow) async {

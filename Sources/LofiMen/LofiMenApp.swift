@@ -6,19 +6,9 @@ import UserNotifications
 @main
 struct LofiMenApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-    @State private var model = DebugTools.makeModel()
+    private var model: AppModel { delegate.model }
 
     var body: some Scene {
-        Window("Lofitime", id: "studio") {
-            StudioView(model: model)
-                .task { DebugTools.runIfRequested(model: model) }
-        }
-        .windowStyle(.hiddenTitleBar)
-        .windowResizability(.contentMinSize)
-        .defaultSize(width: 700, height: 540)
-        .defaultPosition(.center)
-        .commands { RoomCommands(model: model) }
-
         MenuBarExtra {
             MenuBarView(model: model)
         } label: {
@@ -28,6 +18,7 @@ struct LofiMenApp: App {
                 .accessibilityLabel("Lofitime" + (model.timer.status == .ready ? "" : ": \(model.remainingText)"))
         }
         .menuBarExtraStyle(.window)
+        .commands { RoomCommands(model: model) }
     }
 }
 
@@ -62,12 +53,15 @@ enum MenuBarLabel {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     static var openStudio: (() -> Void)?
+    let model = DebugTools.makeModel()
+    private lazy var studio = StudioWindowController(model: model)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.appearance = NSAppearance(named: .darkAqua)
         if Bundle.main.bundleIdentifier != nil {
             UNUserNotificationCenter.current().delegate = self
         }
+        Self.openStudio = { [weak self] in self?.studio.show() }
         DebugTools.prepareLaunch()
         LoginService.shared.start()
         UpdateService.shared.start()
@@ -76,8 +70,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag { Self.openStudio?() }
-        return true
+        Self.openStudio?()
+        return false
     }
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
@@ -87,9 +81,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 }
 
+/// Own the optional window explicitly so launch-at-login never opens it or adds a Dock tile.
+@MainActor
+private final class StudioWindowController: NSObject, NSWindowDelegate {
+    private let model: AppModel
+    private var window: NSWindow?
+
+    init(model: AppModel) { self.model = model }
+
+    func show() {
+        if window == nil {
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 700, height: 540),
+                                  styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+                                  backing: .buffered, defer: false)
+            window.title = "Lofitime"
+            window.titleVisibility = .hidden
+            window.titlebarAppearsTransparent = true
+            window.isReleasedWhenClosed = false
+            window.contentMinSize = NSSize(width: 660, height: 500)
+            window.contentView = NSHostingView(rootView: StudioView(model: model)
+                .task { DebugTools.runIfRequested(model: self.model) })
+            window.delegate = self
+            window.center()
+            window.setFrameAutosaveName("LofitimeStudio")
+            self.window = window
+        }
+        NSApp.setActivationPolicy(.regular)
+        window?.deminiaturize(nil)
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        model.sync.refreshIfNeeded()
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
+    }
+}
+
 private struct RoomCommands: Commands {
     var model: AppModel
-    @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
         CommandGroup(after: .appInfo) {
@@ -115,7 +145,6 @@ private struct RoomCommands: Commands {
 
     private func show(_ section: StudioSection) {
         model.section = section
-        openWindow(id: "studio")
-        NSApp.activate(ignoringOtherApps: true)
+        AppDelegate.openStudio?()
     }
 }

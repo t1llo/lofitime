@@ -6,7 +6,7 @@
 [![Latest release](https://img.shields.io/github/v/release/t1llo/lofitime)](https://github.com/t1llo/lofitime/releases/latest)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-222222)
 
-**A little music. A little more focus.** A native macOS menu-bar app for lo-fi radio and Pomodoro timers, built with SwiftUI.
+A small Mac app with a Pomodoro timer, lo-fi music, and a tiny room that grows as you finish sessions. Built with SwiftUI, just for fun.
 
 [Website](https://lofi.beffa.xyz) · [Download for Mac](https://github.com/t1llo/lofitime/releases/latest)
 
@@ -16,7 +16,7 @@ Requires **macOS 14 or later**. Open the DMG and drag **Lofitime.app** into **Ap
 
 ## Screenshots
 
-<img src="https://lofi.beffa.xyz/assets/studio-candlelight.webp" alt="Lofitime studio with a break timer and lo-fi music controls" width="700">
+<img src="https://lofi.beffa.xyz/assets/studio-candlelight.webp" alt="Lofitime's tiny room with furniture and plants grown from completed focus sessions" width="700">
 
 <img src="https://lofi.beffa.xyz/assets/menu-bar-candlelight.webp" alt="Lofitime's compact menu-bar timer and music player" width="320">
 
@@ -38,7 +38,7 @@ Requires **macOS 14 or later**. Open the DMG and drag **Lofitime.app** into **Ap
 
 ## Using Lofitime
 
-In the menu-bar popup, choose a station and press **Play music**, or **Start focus** to begin a timer. Use the house/headphones button to switch to your room and back. Music and timers work independently; closing the app window keeps Lofitime in your menu bar.
+Lofitime launches in your menu bar. Choose a station and press **Play music**, or **Start focus** to begin a timer. Use the house/headphones button to switch to your room and back. Music and timers work independently. The Dock icon appears only while the main window is open (including when minimized); closing that window returns to menu-bar-only mode and keeps your timer and music running.
 
 Enter `45` or `25:30` into a paused countdown to change its duration. Choose **Open Lofitime** to open the big window, **Stats** for completed sessions, or **Settings** for timer defaults, themes, and startup preferences. These shortcuts work from either popup view. Radio playback requires an internet connection.
 
