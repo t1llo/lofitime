@@ -781,7 +781,7 @@ enum DebugTools {
             smokeFailure("Direct Settings → Stats → Room navigation failed"); return
         }
         try? await Task.sleep(for: .milliseconds(800))
-        print("PASS: Room/Stats/Settings tabs, direct statistics access, daily sessions, and all five themes work with real clicks")
+        print("PASS: Room/Stats/Settings tabs, direct statistics access, daily sessions, and all \(AppAppearance.allCases.count) themes work with real clicks")
     }
 
     @MainActor private static func accessibilityElement(_ identifier: String, in root: AnyObject) -> AnyObject? {

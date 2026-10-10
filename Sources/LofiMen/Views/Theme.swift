@@ -61,6 +61,14 @@ struct RoomTheme {
         amber: Color(hex: 0xE5BF97), activity: Color(hex: 0xB3C39F)
     )
 
+    static let tokyoNight = RoomTheme(
+        background: Color(hex: 0x1A1B26), sidebar: Color(hex: 0x16161E), surface: Color(hex: 0x24283B),
+        elevated: Color(hex: 0x292E42), accent: Color(hex: 0x7AA2F7),
+        text: Color(hex: 0xC0CAF5), secondary: Color(hex: 0xA9B1D6),
+        muted: Color(hex: 0x9AA5CE), line: Color(hex: 0x414868).opacity(0.7),
+        amber: Color(hex: 0xE0AF68), activity: Color(hex: 0x9ECE6A)
+    )
+
     func activityColor(level: Int) -> Color {
         level == 0 ? elevated : activity.opacity([0, 0.25, 0.45, 0.7, 1][min(4, max(0, level))])
     }
@@ -74,6 +82,7 @@ extension AppAppearance {
         case .moss: .moss
         case .moonlight: .moonlight
         case .rosewood: .rosewood
+        case .tokyoNight: .tokyoNight
         }
     }
 }

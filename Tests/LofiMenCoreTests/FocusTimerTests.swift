@@ -317,9 +317,9 @@ struct FocusTimerTests {
             try expectEqual(restored.appearance, appearance)
             try expectEqual(restored.timer.focusMinutes, 47)
         }
-        var previousTheme = try JSONSerialization.jsonObject(with: legacy) as! [String: Any]
-        previousTheme["appearance"] = "tokyoNight"
-        let migrated = try JSONDecoder().decode(Preferences.self, from: JSONSerialization.data(withJSONObject: previousTheme))
+        var unknownTheme = try JSONSerialization.jsonObject(with: legacy) as! [String: Any]
+        unknownTheme["appearance"] = "unknownTheme"
+        let migrated = try JSONDecoder().decode(Preferences.self, from: JSONSerialization.data(withJSONObject: unknownTheme))
         try expectEqual(migrated.appearance, .candlelight)
         try expectEqual(migrated.timer.focusMinutes, 47)
         try expectEqual(migrated.notifications, true)

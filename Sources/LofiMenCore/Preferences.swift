@@ -1,7 +1,7 @@
 import Foundation
 
 public enum AppAppearance: String, CaseIterable, Codable, Identifiable, Sendable {
-    case candlelight, catppuccin, moss, moonlight, rosewood
+    case candlelight, catppuccin, moss, moonlight, rosewood, tokyoNight
     public var id: String { rawValue }
     public var title: String {
         switch self {
@@ -10,6 +10,7 @@ public enum AppAppearance: String, CaseIterable, Codable, Identifiable, Sendable
         case .moss: "Moss"
         case .moonlight: "Moonlight"
         case .rosewood: "Rosewood"
+        case .tokyoNight: "Tokyo Night"
         }
     }
     public var subtitle: String {
@@ -19,6 +20,7 @@ public enum AppAppearance: String, CaseIterable, Codable, Identifiable, Sendable
         case .moss: "Sage & forest green"
         case .moonlight: "Mist & midnight blue"
         case .rosewood: "Dusty rose & plum"
+        case .tokyoNight: "Deep navy & neon blue"
         }
     }
 }
@@ -44,7 +46,7 @@ public struct Preferences: Codable, Sendable {
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         timer = try values.decodeIfPresent(FocusConfiguration.self, forKey: .timer) ?? .init()
-        // The former Tokyo Night default and unknown themes migrate without losing other preferences.
+        // Unknown themes fall back without losing other preferences.
         appearance = (try? values.decode(AppAppearance.self, forKey: .appearance)) ?? .candlelight
         autoStartBreaks = try values.decodeIfPresent(Bool.self, forKey: .autoStartBreaks) ?? false
         autoStartFocus = try values.decodeIfPresent(Bool.self, forKey: .autoStartFocus) ?? false
