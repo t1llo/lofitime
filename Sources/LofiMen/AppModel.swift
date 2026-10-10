@@ -115,7 +115,7 @@ final class AppModel {
 
     private func updateAppIcon() {
         guard !DebugTools.requested else { return }
-        NSApplication.shared.applicationIconImage = AppResources.themedIcon(for: preferences.appearance.palette)
+        NSApplication.shared.applicationIconImage = AppResources.dockIcon(for: preferences.appearance.palette)
     }
 
     var progress: Double { timer.progress(at: now) }

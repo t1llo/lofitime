@@ -13,7 +13,8 @@ func drawIcon(pixels: Int) -> Data {
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
     NSGraphicsContext.current?.imageInterpolation = .high
-    image.draw(in: NSRect(x: 0, y: 0, width: 1024, height: 1024),
+    // macOS icon artwork sits inside an 824px square on the 1024px canvas.
+    image.draw(in: NSRect(x: 100, y: 100, width: 824, height: 824),
                from: .zero, operation: .copy, fraction: 1)
     NSGraphicsContext.restoreGraphicsState()
     return rep.representation(using: .png, properties: [:])!

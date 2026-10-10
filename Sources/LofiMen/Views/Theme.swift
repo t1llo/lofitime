@@ -161,6 +161,15 @@ extension AppResources {
     @MainActor private static var themedIcons: [String: NSImage] = [:]
     private static let iconContext = CIContext(options: [.cacheIntermediates: false])
 
+    @MainActor static func dockIcon(for theme: RoomTheme) -> NSImage {
+        let artwork = themedIcon(for: theme)
+        // Match the packaged icon's 100px inset on a 1024px canvas.
+        return NSImage(size: NSSize(width: 512, height: 512), flipped: false) { bounds in
+            artwork.draw(in: bounds.insetBy(dx: bounds.width * 100 / 1024, dy: bounds.height * 100 / 1024))
+            return true
+        }
+    }
+
     @MainActor static func themedIcon(for theme: RoomTheme) -> NSImage {
         let key = NSColor(theme.accent).description
         if let image = themedIcons[key] { return image }
