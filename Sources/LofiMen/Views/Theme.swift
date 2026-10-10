@@ -1,4 +1,5 @@
 import LofiMenCore
+import CoreImage
 import SwiftUI
 
 extension Font {
@@ -112,14 +113,18 @@ extension View {
 
 struct CalmButtonStyle: ButtonStyle {
     @Environment(\.roomTheme) private var theme
+    @Environment(\.isEnabled) private var isEnabled
     var prominent = false
+    var compact = false
+    var expands = true
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label.font(.room(size: 13, weight: .medium))
+        configuration.label.font(.room(size: compact ? 11 : 13, weight: .medium))
             .foregroundStyle(prominent ? theme.background : theme.text)
-            .padding(.horizontal, 16).frame(height: 38).frame(maxWidth: .infinity)
+            .padding(.horizontal, compact ? 11 : 16).frame(height: compact ? 30 : 38)
+            .frame(maxWidth: expands ? .infinity : nil)
             .background(prominent ? theme.accent : theme.elevated)
             .clipShape(RoundedRectangle(cornerRadius: 8))
-            .opacity(configuration.isPressed ? 0.75 : 1)
+            .opacity(!isEnabled ? 0.45 : configuration.isPressed ? 0.75 : 1)
             .contentShape(RoundedRectangle(cornerRadius: 8))
     }
 }
@@ -141,13 +146,36 @@ struct IconButton: View {
 }
 
 struct BrandMark: View {
+    @Environment(\.roomTheme) private var theme
     var size: CGFloat = 26
     var body: some View {
-        Image(nsImage: AppResources.appIcon)
+        Image(nsImage: AppResources.themedIcon(for: theme))
             .resizable()
             .scaledToFit()
             .frame(width: size, height: size)
             .accessibilityHidden(true)
+    }
+}
+
+extension AppResources {
+    @MainActor private static var themedIcons: [String: NSImage] = [:]
+    private static let iconContext = CIContext(options: [.cacheIntermediates: false])
+
+    @MainActor static func themedIcon(for theme: RoomTheme) -> NSImage {
+        let key = NSColor(theme.accent).description
+        if let image = themedIcons[key] { return image }
+        guard let data = appIcon.tiffRepresentation, let source = CIImage(data: data) else { return appIcon }
+        let adjusted = source.applyingFilter("CIColorControls", parameters: [
+            kCIInputSaturationKey: 0, kCIInputContrastKey: 1.5, kCIInputBrightnessKey: 0
+        ]).applyingFilter("CIFalseColor", parameters: [
+            "inputColor0": CIColor(color: NSColor(theme.background))!,
+            "inputColor1": CIColor(color: NSColor(theme.accent))!
+        ])
+        let resized = adjusted.transformed(by: CGAffineTransform(scaleX: 512 / source.extent.width, y: 512 / source.extent.height))
+        guard let cgImage = iconContext.createCGImage(resized, from: resized.extent) else { return appIcon }
+        let image = NSImage(cgImage: cgImage, size: NSSize(width: 512, height: 512))
+        themedIcons[key] = image
+        return image
     }
 }
 

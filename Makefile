@@ -20,7 +20,7 @@ run: build ## Build, restart, and open the app
 dev: debug ## Build and open a debug app
 	@./scripts/run-app.sh
 
-test: ## Run timer, activity, and preference tests (no network needed)
+test: ## Run timer, activity, preferences, and GitHub sync tests (no network needed)
 	swift build --product LofiMenCoreTests --disable-keychain
 	@set -e; bin="$$(swift build --product LofiMenCoreTests --disable-keychain --show-bin-path)/LofiMenCoreTests"; \
 		codesign --force --sign - "$$bin"; \

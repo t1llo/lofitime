@@ -10,7 +10,7 @@ public struct RoomAddition: Identifiable, Sendable {
         .init(id: "desk-lamp", title: "A warm desk lamp", minutes: 45),
         .init(id: "rug", title: "A soft woven rug", minutes: 90),
         .init(id: "bookshelf", title: "A shelf for your books", minutes: 180),
-        .init(id: "floor-lamp", title: "Lamplight & soft pillows", minutes: 300),
+        .init(id: "floor-lamp", title: "Floor lamp and pillows", minutes: 300),
         .init(id: "hanging-plants", title: "Trailing window plants", minutes: 420),
         .init(id: "blossoms", title: "Flowers in full bloom", minutes: 540),
         .init(id: "fairy-lights", title: "A canopy of fairy lights", minutes: 720)

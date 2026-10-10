@@ -23,6 +23,7 @@ struct MenuBarView: View {
         .background(MenuBarWindowAppearance())
         .environment(\.roomTheme, model.preferences.appearance.palette)
         .preferredColorScheme(.dark)
+        .onAppear { model.sync.refreshIfNeeded() }
     }
 
     private var roomPanel: some View {

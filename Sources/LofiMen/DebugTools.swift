@@ -93,6 +93,18 @@ enum DebugTools {
                         try await render(StudioView(model: model).frame(width: 700, height: 540),
                                     to: directory.appendingPathComponent("\(section == .sessions ? "sessions" : "preferences").png"))
                     }
+                    model.section = .settings
+                    try await render(StudioView(model: model).frame(width: 700, height: 900),
+                                     to: directory.appendingPathComponent("preferences-extended.png"))
+                    for mode in ["create", "connect"] {
+                        try await render(GitHubSyncView(sync: model.sync)
+                            .frame(width: 600, height: 440, alignment: .top).padding(20)
+                            .environment(\.roomTheme, .candlelight).foregroundStyle(RoomTheme.candlelight.text)
+                            .background(RoomTheme.candlelight.background).preferredColorScheme(.dark),
+                            to: directory.appendingPathComponent("sync-\(mode).png"), prepare: { window in
+                                _ = await click("github-sync-\(mode)-choice", in: window)
+                            })
+                    }
                     try await render(MenuBarView(model: model), to: directory.appendingPathComponent("menu-bar.png"))
                     model.section = .sessions
                     for station in [RadioStation.sleepy, .house] {
@@ -726,7 +738,7 @@ enum DebugTools {
         NSApp.activate(ignoringOtherApps: true)
         try? await Task.sleep(for: .milliseconds(300))
         guard await click("navigation-Activity", in: window), model.section == .sessions else {
-            smokeFailure("Clicking Activity in the studio sidebar did not open it"); return
+            smokeFailure("Clicking the footer brand did not open Activity"); return
         }
         guard accessibilityElement("activity-room", in: window) != nil,
               accessibilityElement("activity-session-heading", in: window) == nil,
@@ -751,7 +763,7 @@ enum DebugTools {
             smokeFailure("Closing daily sessions did not return to Activity"); return
         }
         guard await click("navigation-Settings", in: window), model.section == .settings else {
-            smokeFailure("The studio sidebar could not open Settings"); return
+            smokeFailure("The bottom navigation could not open Settings"); return
         }
         for appearance in AppAppearance.allCases {
             guard await click("theme-\(appearance.rawValue)", in: window), model.preferences.appearance == appearance else {
@@ -759,7 +771,7 @@ enum DebugTools {
             }
         }
         guard await click("navigation-Activity", in: window), model.section == .sessions else {
-            smokeFailure("The sidebar could not switch between Settings and Activity"); return
+            smokeFailure("The bottom navigation could not switch between Settings and Activity"); return
         }
         print("PASS: Activity/Settings navigation, desk-screen stats, daily sessions, and all five themes work with real clicks")
     }
@@ -862,8 +874,8 @@ enum DebugTools {
             smokeFailure("Scrolling did not zoom the room"); return
         }
         let origin = NSPoint(x: room.bounds.midX, y: room.bounds.midY)
-        func mouse(_ type: NSEvent.EventType, at point: NSPoint, count: Int = 1) -> NSEvent {
-            NSEvent.mouseEvent(with: type, location: room.convert(point, to: nil), modifierFlags: [],
+        func mouse(_ type: NSEvent.EventType, at point: NSPoint, count: Int = 1, modifiers: NSEvent.ModifierFlags = []) -> NSEvent {
+            NSEvent.mouseEvent(with: type, location: room.convert(point, to: nil), modifierFlags: modifiers,
                                timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
                                context: nil, eventNumber: 0, clickCount: count, pressure: 1)!
         }
@@ -877,11 +889,36 @@ enum DebugTools {
         guard room.cameraState == RoomCameraState() else {
             smokeFailure("Double-click did not reset the room"); return
         }
+        // Camera-space panning and cursor-anchored zoom must agree with SceneKit's projection.
+        let worldPoint = SCNVector3(1, 1.85, 0)
+        let projected = room.projectPoint(worldPoint)
+        let anchor = NSPoint(x: projected.x, y: room.isFlipped ? room.bounds.height - projected.y : projected.y)
+        room.zoom(by: 1.15, at: anchor)
+        let afterZoom = room.projectPoint(worldPoint)
+        guard abs(afterZoom.x - projected.x) < 1, abs(afterZoom.y - projected.y) < 1 else {
+            smokeFailure("Zoom drifted away from the pointer: \(projected) → \(afterZoom)"); return
+        }
+        room.mouseDown(with: mouse(.leftMouseDown, at: origin, modifiers: .option))
+        room.mouseDragged(with: mouse(.leftMouseDragged, at: NSPoint(x: origin.x + 25, y: origin.y + 20), modifiers: .option))
+        room.mouseUp(with: mouse(.leftMouseUp, at: origin))
+        guard room.cameraState.yaw != 0, room.cameraState.pitch != 0, room.preferredFramesPerSecond == 60 else {
+            smokeFailure("Option-drag did not tilt the room at an interactive frame rate"); return
+        }
+        let tilted = room.cameraState
+        try? await Task.sleep(for: .milliseconds(400))
+        guard room.cameraState == tilted, !room.isInteracting else {
+            smokeFailure("The explored view snapped back or kept interactive rendering alive"); return
+        }
+        room.mouseDown(with: mouse(.leftMouseDown, at: origin, count: 2))
+        guard room.cameraState == RoomCameraState() else { smokeFailure("Reset did not clear the tilt"); return }
         // Leave a distinctive view to check restoration after browsing the desktop.
         room.scrollWheel(with: event)
         room.mouseDown(with: mouse(.leftMouseDown, at: origin))
         room.mouseDragged(with: mouse(.leftMouseDragged, at: NSPoint(x: origin.x - 15, y: origin.y + 5)))
         room.mouseUp(with: mouse(.leftMouseUp, at: origin))
+        room.mouseDown(with: mouse(.rightMouseDown, at: origin))
+        room.mouseDragged(with: mouse(.rightMouseDragged, at: NSPoint(x: origin.x + 16, y: origin.y + 10)))
+        room.mouseUp(with: mouse(.rightMouseUp, at: origin))
         try? await Task.sleep(for: .milliseconds(200))
     }
 
@@ -1006,7 +1043,7 @@ enum DebugTools {
               let footer = accessibilityElement("activity-all-time", in: window)?.accessibilityFrame?(),
               room.bounds.contains(room.convert(window.convertFromScreen(footer), from: nil)),
               room.desktopHost?.frame == room.bounds else {
-            smokeFailure("Stats remained scaled to the monitor or clipped in the compact window"); return
+            smokeFailure("Stats remained scaled to the monitor or clipped in the compact window (room: \(room.bounds), total: \(String(describing: accessibilityElement("activity-month-total", in: window)?.accessibilityFrame?())), footer: \(String(describing: accessibilityElement("activity-all-time", in: window)?.accessibilityFrame?())))"); return
         }
         guard await click("activity-view-stats", in: window) else { return }
         if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion, !room.isTransitioning {

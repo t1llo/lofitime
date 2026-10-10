@@ -8,15 +8,16 @@ let package = Package(
     dependencies: [.package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.0")],
     targets: [
         .target(name: "LofiMenCore"),
+        .target(name: "LofiMenSync", dependencies: ["LofiMenCore"]),
         .executableTarget(
             name: "LofiMen",
-            dependencies: ["LofiMenCore", .product(name: "Sparkle", package: "Sparkle")],
+            dependencies: ["LofiMenCore", "LofiMenSync", .product(name: "Sparkle", package: "Sparkle")],
             resources: ["player.html", "house.jpg", "lofi.jpg", "sleepy.jpg", "synthwave.jpg", "lofi-head.svg", "app-icon.png"]
                 .map { .process("Resources/\($0)") },
             linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]
         ),
         // A small executable test runner also works with Command Line Tools-only installs.
-        .executableTarget(name: "LofiMenCoreTests", dependencies: ["LofiMenCore"], path: "Tests/LofiMenCoreTests")
+        .executableTarget(name: "LofiMenCoreTests", dependencies: ["LofiMenCore", "LofiMenSync"], path: "Tests/LofiMenCoreTests")
     ],
     swiftLanguageModes: [.v5]
 )

@@ -61,6 +61,7 @@ import SwiftUI
         camera.name = "camera"
         camera.camera = SCNCamera()
         camera.camera?.usesOrthographicProjection = true
+        camera.camera?.projectionDirection = .vertical
         camera.camera?.zNear = 0.1
         camera.camera?.zFar = 50
         camera.camera?.wantsHDR = true

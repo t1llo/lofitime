@@ -18,11 +18,12 @@ struct DeskStatsView: View {
 
     var body: some View {
         GeometryReader { geometry in
+            let compact = geometry.size.height < 330
             ScrollView {
                 Group {
                     if let selectedDay { dayDetails(selectedDay) }
-                    else { overview(activity, chartHeight: max(70, min(150, geometry.size.height - 280))) }
-                }.padding(20).frame(maxWidth: .infinity)
+                    else { overview(activity, chartHeight: max(40, min(150, geometry.size.height - (compact ? 220 : 280))), compact: compact) }
+                }.padding(compact ? 14 : 20).frame(maxWidth: .infinity)
                     .frame(minHeight: geometry.size.height, alignment: .top)
             }.scrollIndicators(.hidden)
         }.foregroundStyle(theme.text).background(theme.background).tint(theme.accent)
@@ -32,12 +33,12 @@ struct DeskStatsView: View {
             .onChange(of: model.activity.endDate) { _, _ in selectedDay = nil }
     }
 
-    private func overview(_ activity: FocusActivity, chartHeight: CGFloat) -> some View {
+    private func overview(_ activity: FocusActivity, chartHeight: CGFloat, compact: Bool) -> some View {
         let period = monthSelected ? activity.month : activity.week
         let prefix = monthSelected ? "month" : "week"
         let offset = monthSelected ? $monthOffset : $weekOffset
         let maximum = max(3_600, period.days.map(\.duration).max() ?? 0)
-        return VStack(alignment: .leading, spacing: 16) {
+        return VStack(alignment: .leading, spacing: compact ? 10 : 16) {
             HStack {
                 Image(systemName: "chart.bar.xaxis").foregroundStyle(theme.activity)
                 Text("Focus time").font(.room(size: 17, weight: .semibold))

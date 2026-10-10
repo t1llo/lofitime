@@ -16,8 +16,8 @@ struct FocusTimerTests {
     static let start = Date(timeIntervalSince1970: 1_800_000_000)
     static let configuration = FocusConfiguration()
 
-    static func main() {
-        let tests: [(String, () throws -> Void)] = [
+    @MainActor static func main() async {
+        let tests: [(String, @MainActor () async throws -> Void)] = [
             ("Pause and resume preserve remaining time", pauseAndResume),
             ("Sleep completes once without inventing sessions", sleepAndCompletion),
             ("Fourth focus session starts a long break", longBreakCycle),
@@ -36,12 +36,22 @@ struct FocusTimerTests {
             ("Invalid and future records cannot inflate activity or grow the room", invalidActivity),
             ("Activity respects local days across daylight-saving changes", activityTimeZone),
             ("Headphone loss pauses Bluetooth, USB, and same-device jack routes", headphoneDisconnection),
-            ("Existing preferences migrate and theme choice persists", preferenceMigration)
+            ("Existing preferences migrate and theme choice persists", preferenceMigration),
+            ("Sync merges immutable session IDs without duplicating focus time", syncArchiveMerge),
+            ("Sync rejects conflicting, corrupt, and newer archives", syncArchiveValidation),
+            ("Two Macs create one private repository and merge concurrent updates", syncTwoComputers),
+            ("Sync stops for public, replaced, unrelated, and inaccessible repositories", syncRepositoryChecks),
+            ("Create and connect are distinct, repository links support writable shared sync", syncRepositoryLinks),
+            ("Large sync histories use an exact-revision blob download", syncLargeHistory),
+            ("In-flight sync preserves new local sessions and catches up immediately", syncInFlightSession),
+            ("Offline sessions retry and saved connections sync on launch", syncOfflineAndRelaunch),
+            ("Disconnect cancels sync and ignores late responses", syncDisconnect),
+            ("GitHub CLI handles large stdin/stdout, errors, timeout, and cancellation", syncCLI)
         ]
         var failures = 0
         for (name, test) in tests {
             do {
-                try test()
+                try await test()
                 print("PASS: \(name)")
             } catch {
                 failures += 1

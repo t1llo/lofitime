@@ -21,11 +21,14 @@ struct PreferencesView: View {
                 }
             }.frame(maxWidth: .infinity, alignment: .leading).roomCard(padding: 16)
 
+            GitHubSyncView(sync: model.sync)
+
             VStack(alignment: .leading, spacing: 12) {
                 Text("Video quality").font(.room(size: 13, weight: .medium))
                 Button("Choose YouTube quality…") {
                     showingVideoQuality = true
-                }.accessibilityIdentifier("video-quality-settings")
+                }.buttonStyle(CalmButtonStyle(compact: true, expands: false))
+                    .accessibilityIdentifier("video-quality-settings")
                 Text("Choose a resolution in YouTube's gear menu → Quality. Available resolutions and how long the choice is remembered are managed by YouTube, not Lofitime.")
                     .font(.room(size: 10)).foregroundStyle(theme.muted)
             }.roomCard(padding: 16)
@@ -88,12 +91,14 @@ struct PreferencesView: View {
                     .font(.room(size: 10)).foregroundStyle(theme.muted)
             }.roomCard(padding: 16)
         }
+        .buttonStyle(CalmButtonStyle(compact: true, expands: false))
         .task {
             login.refresh()
             await model.refreshNotificationAuthorization()
         }
         .sheet(isPresented: $showingVideoQuality) {
             VideoQualityView(player: model.player)
+                .environment(\.roomTheme, theme)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             login.refresh()
@@ -143,19 +148,20 @@ struct PreferencesView: View {
 }
 
 struct VideoQualityView: View {
+    @Environment(\.roomTheme) private var theme
     let player: RadioPlayer
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("YouTube video quality").font(.headline)
+                Text("YouTube video quality").font(.room(size: 16, weight: .medium))
                 Spacer()
                 Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
                     .accessibilityIdentifier("video-quality-done")
             }
             Text("Start playback if needed, then use the gear → Quality to choose a resolution. This is the same player used by the menu-bar popup.")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(.room(size: 11)).foregroundStyle(theme.secondary)
             RadioWebView(player: player, presentation: .quality, fillsBounds: false)
                 .frame(width: 560, height: 315)
             if let error = player.error {
@@ -164,6 +170,8 @@ struct VideoQualityView: View {
             }
         }
         .padding(20)
+        .foregroundStyle(theme.text).background(theme.background).tint(theme.accent)
+        .buttonStyle(CalmButtonStyle(compact: true, expands: false))
         .onAppear { if !player.hasLoaded { player.play() } }
     }
 }

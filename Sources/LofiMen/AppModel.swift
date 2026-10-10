@@ -1,5 +1,6 @@
 import AppKit
 import LofiMenCore
+import LofiMenSync
 import Observation
 import UserNotifications
 
@@ -35,6 +36,7 @@ final class AppModel {
                 durationInput = nil
                 timer.reconfigure(preferences.timer)
             }
+            if oldValue.appearance != preferences.appearance { updateAppIcon() }
             saveSession()
         }
     }
@@ -51,16 +53,19 @@ final class AppModel {
     var notificationError: String?
     private(set) var notificationPermissionDenied = false
     let player: RadioPlayer
+    let sync: GitHubSyncService
 
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var ticker: Timer?
     @ObservationIgnored private var wakeObserver: NSObjectProtocol?
+    @ObservationIgnored private var activationObserver: NSObjectProtocol?
     @ObservationIgnored private var notificationRequest: Task<Void, Never>?
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         menuBarShowsRoom = defaults.bool(forKey: "menuBar.showsRoom")
         player = RadioPlayer(defaults: defaults)
+        sync = GitHubSyncService(defaults: defaults)
         let preferences = defaults.data(forKey: "preferences.v1")
             .flatMap { try? JSONDecoder().decode(Preferences.self, from: $0) } ?? Preferences()
         self.preferences = preferences
@@ -80,9 +85,23 @@ final class AppModel {
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.tick() }
+            Task { @MainActor in
+                self?.tick()
+                self?.sync.refreshIfNeeded()
+            }
         }
         tick()
+        updateAppIcon()
+        if !DebugTools.requested {
+            sync.start(snapshot: { [weak self] in self?.records ?? [] }, receive: { [weak self] records in
+                self?.receiveSyncedRecords(records)
+            })
+            activationObserver = NotificationCenter.default.addObserver(
+                forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in self?.sync.refreshIfNeeded() }
+            }
+        }
         if !DebugTools.requested, Bundle.main.bundleURL.pathExtension == "app",
            !defaults.bool(forKey: "notifications.configured") {
             setNotifications(true)
@@ -91,6 +110,11 @@ final class AppModel {
 
     var remainingText: String {
         SessionDuration.clock(timer.remaining(at: now))
+    }
+
+    private func updateAppIcon() {
+        guard !DebugTools.requested else { return }
+        NSApplication.shared.applicationIconImage = AppResources.themedIcon(for: preferences.appearance.palette)
     }
 
     var progress: Double { timer.progress(at: now) }
@@ -198,6 +222,7 @@ final class AppModel {
             player.playWithFocus()
         }
         saveSession()
+        if completion.mode == .focus { sync.syncNow() }
     }
 
     func setNotifications(_ enabled: Bool) {
@@ -255,6 +280,15 @@ final class AppModel {
         todayDuration = todayRecords.reduce(0) { $0 + $1.duration }
     }
 
+    private func receiveSyncedRecords(_ incoming: [SessionRecord]) {
+        guard records != incoming else { return }
+        records = incoming
+        now = Date()
+        activity = FocusActivity(records: records, through: now)
+        refreshToday()
+        saveSession()
+    }
+
     private func scheduleTick() {
         ticker?.invalidate()
         let date = Date()
@@ -278,6 +312,7 @@ final class AppModel {
     deinit {
         ticker?.invalidate()
         if let wakeObserver { NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver) }
+        if let activationObserver { NotificationCenter.default.removeObserver(activationObserver) }
         notificationRequest?.cancel()
     }
 
