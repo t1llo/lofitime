@@ -17,20 +17,12 @@ struct StudyRoomView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .center) {
+            if !showsStats {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(showsStats ? "Focus history" : "\(focusTime(growth.recentDuration)) focused").font(.room(size: 13, weight: .medium))
-                    Text(showsStats ? "Your sessions and totals" : "Over the last 7 days")
-                        .font(.room(size: 11)).foregroundStyle(theme.muted)
-                }
-                Spacer(minLength: 5)
-                if desktop != nil {
-                    Button { showsStats.toggle() } label: {
-                        Label(showsStats ? "Back to room" : "View stats", systemImage: showsStats ? "arrow.uturn.backward" : "chart.bar.xaxis")
-                    }.buttonStyle(CalmButtonStyle(compact: true, expands: false))
-                        .accessibilityIdentifier("activity-view-stats")
-                }
-            }.padding(.horizontal, 16).padding(.top, 15)
+                    Text("\(focusTime(growth.recentDuration)) focused").font(.room(size: 13, weight: .medium))
+                    Text("Over the last 7 days").font(.room(size: 11)).foregroundStyle(theme.muted)
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 16).padding(.top, 15)
+            }
             StudyRoomScene(growth: growth, theme: theme, camera: $camera, showsStats: showsStats, desktop: desktop)
                 .frame(maxWidth: .infinity, minHeight: 150, maxHeight: .infinity).clipped()
             if !showsStats { growthFooter }

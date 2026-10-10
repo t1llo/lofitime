@@ -27,9 +27,11 @@ Requires **macOS 14 or later**. Open the DMG and drag **Lofitime.app** into **Ap
 - **Focus timers:** customizable Pomodoro cycles and editable countdowns.
 - **Your room:** a side-view 3D room with a desk, computer, window, and bed. Recent focus grows plants and flowers, fills bookshelves, and adds warm lamps, a reading nook, candles, keepsakes, and fairy lights. Scroll or pinch to zoom around the pointer, drag to move, Option-drag or right-drag to tilt, and double-click to reset the view.
 - **A room that grows with you:** completed sessions nourish one shared room over the last seven days. Each session contributes fully for three days, then gently fades over the next four. After a week without focus the room returns to its essentials; your saved history and totals always remain.
-- **A closer look at your focus:** choose **View stats** to zoom through the room's computer into a full-size statistics page. Explore weekly bars, monthly totals, active days, sessions, daily averages, and all-time focus. Click a day for its sessions, then **Back to room** to zoom back out to your previous view. Everything stays saved locally.
+- **A closer look at your focus:** choose the **Stats** tab to zoom through the room's computer into a full-size statistics page, or open it directly from the popup's **Stats** shortcut. Explore weekly bars, monthly totals, active days, sessions, daily averages, and all-time focus. Click a day for its sessions, then choose **Room** to return to your previous view. Everything stays saved locally.
 - **A room in your menu bar:** one button switches between music/timer controls and your cozy room, with quick timer and music controls. Your chosen view is remembered.
-- **Native macOS:** a full-width room with compact bottom navigation, a menu-bar player, completion notifications, and five coordinated themes: Candlelight, Catppuccin, Moss, Moonlight, and Rosewood. The in-app logo and running Dock icon follow your theme.
+- **Easy navigation:** **Open Lofitime**, **Stats**, and **Settings** are always visible at the bottom of both popup views. The full window has clearly labeled **Room**, **Stats**, and **Settings** tabs.
+- **Native macOS:** a full-width room, a menu-bar player, completion notifications, and five coordinated themes: Candlelight, Catppuccin, Moss, Moonlight, and Rosewood. The in-app logo, running Dock icon, and room furniture fabrics follow your theme.
+- **Free 3D furniture:** the room uses Kay Lousberg's CC0 KayKit Furniture Bits models, bundled with the app for offline use. See [credits](ATTRIBUTION.md).
 - **Convenience:** launch at login, automatic updates, and optional automatic breaks.
 - **Sync across Macs:** opt-in GitHub sync uses your GitHub CLI login and a private repository. Completed focus sessions merge across computers, keeping your room and statistics together without double-counting.
 - **Video quality:** choose an available resolution through YouTube's player in Settings.
@@ -38,7 +40,7 @@ Requires **macOS 14 or later**. Open the DMG and drag **Lofitime.app** into **Ap
 
 In the menu-bar popup, choose a station and press **Play music**, or **Start focus** to begin a timer. Use the house/headphones button to switch to your room and back. Music and timers work independently; closing the app window keeps Lofitime in your menu bar.
 
-Enter `45` or `25:30` into a paused countdown to change its duration. Open **Activity** for completed sessions and **Settings** for timer defaults, themes, and startup preferences. Radio playback requires an internet connection.
+Enter `45` or `25:30` into a paused countdown to change its duration. Choose **Open Lofitime** to open the big window, **Stats** for completed sessions, or **Settings** for timer defaults, themes, and startup preferences. These shortcuts work from either popup view. Radio playback requires an internet connection.
 
 ### Sync across Macs
 
@@ -86,7 +88,7 @@ GitHub Actions checks builds and scans Git history with Gitleaks on every push a
 | `⌘ ⇧ P` | Play / pause music |
 | `⌘ ⇧ R` | Reset the current session |
 | `⌘ 1` | Open your room |
-| `⌘ 2` | View activity |
+| `⌘ 2` | Open stats directly |
 | `⌘ ,` | Open settings |
 | `⌘ Q` | Quit |
 

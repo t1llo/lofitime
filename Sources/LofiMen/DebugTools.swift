@@ -91,7 +91,7 @@ enum DebugTools {
                     for section in StudioSection.allCases {
                         model.section = section
                         try await render(StudioView(model: model).frame(width: 700, height: 540),
-                                    to: directory.appendingPathComponent("\(section == .sessions ? "sessions" : "preferences").png"))
+                                    to: directory.appendingPathComponent("\(section.rawValue.lowercased()).png"))
                     }
                     model.section = .settings
                     try await render(StudioView(model: model).frame(width: 700, height: 900),
@@ -327,11 +327,11 @@ enum DebugTools {
               labelSizes.allSatisfy({ $0 == MenuBarLabel.activeSize }) else {
             smokeFailure("Menu-bar countdown width changes with digits or pause state"); return
         }
-        let studioVideo = VideoGeometry.frame(in: MenuBarView.size, fill: true, focalPoint: 0.5)
-        let menuVideo = VideoGeometry.frame(in: MenuBarView.size, fill: true, focalPoint: 0.5, presentation: .menuBar)
+        let studioVideo = VideoGeometry.frame(in: MenuBarView.contentSize, fill: true, focalPoint: 0.5)
+        let menuVideo = VideoGeometry.frame(in: MenuBarView.contentSize, fill: true, focalPoint: 0.5, presentation: .menuBar)
         guard menuVideo.height > studioVideo.height,
-              menuVideo.minY < (MenuBarView.size.height - menuVideo.height) / 2,
-              menuVideo.maxY > MenuBarView.size.height else {
+              menuVideo.minY < (MenuBarView.contentSize.height - menuVideo.height) / 2,
+              menuVideo.maxY > MenuBarView.contentSize.height else {
             smokeFailure("Menu-bar video does not overscan the panel edges"); return
         }
         print("PASS: menu-bar countdown has fixed width across digits and pause states; preview overscans its edges")
@@ -489,8 +489,8 @@ enum DebugTools {
         }
         guard model.player.surfaces.activeSurface?.presentation == .menuBar,
               model.player.webView.window === panel,
-              model.player.webView.frame.width >= MenuBarView.size.width,
-              model.player.webView.frame.height >= MenuBarView.size.height else {
+              model.player.webView.frame.width >= MenuBarView.contentSize.width,
+              model.player.webView.frame.height >= MenuBarView.contentSize.height else {
             smokeFailure("The menu-bar panel did not take the full-background live video"); return
         }
         let menuState = try? await model.player.webView.evaluateJavaScript("player.getPlayerState()")
@@ -502,7 +502,7 @@ enum DebugTools {
         let pointerEvents = try? await model.player.webView.evaluateJavaScript("getComputedStyle(document.getElementById('player')).pointerEvents")
         let controls = try? await model.player.webView.evaluateJavaScript("new URL(player.getIframe().src).searchParams.get('controls')")
         guard frame.minY < 0,
-              frame.maxY > MenuBarView.size.height,
+              frame.maxY > MenuBarView.contentSize.height,
               abs(frame.width / frame.height - 16 / 9) < 0.001,
                pointerEvents as? String == "none", controls as? String == "1" else {
             smokeFailure("YouTube chrome or hover controls can enter the menu background"); return
@@ -662,8 +662,9 @@ enum DebugTools {
         }
         let marker = UUID().uuidString
         _ = try? await model.player.webView.evaluateJavaScript("window.qualityMarker = '\(marker)'")
-        guard await click("navigation-Settings", in: studio),
-              await click("video-quality-settings", in: studio) else {
+        guard await click("navigation-Settings", in: studio) else { return }
+        await reveal("video-quality-settings", in: studio)
+        guard await click("video-quality-settings", in: studio) else {
             smokeFailure("Video quality settings could not be opened"); return
         }
         try? await Task.sleep(for: .seconds(1))
@@ -709,7 +710,7 @@ enum DebugTools {
             guard let sheet = studio.attachedSheet, await click("video-quality-done", in: sheet) else {
                 smokeFailure("Video quality settings could not be dismissed"); return
             }
-            guard await click("navigation-Activity", in: studio) else {
+            guard await click("navigation-Room", in: studio) else {
                 smokeFailure("Activity could not reopen after quality settings"); return
             }
             try? await Task.sleep(for: .milliseconds(500))
@@ -737,8 +738,8 @@ enum DebugTools {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         try? await Task.sleep(for: .milliseconds(300))
-        guard await click("navigation-Activity", in: window), model.section == .sessions else {
-            smokeFailure("Clicking the footer brand did not open Activity"); return
+        guard await click("navigation-Room", in: window), model.section == .sessions else {
+            smokeFailure("The Room tab did not open the room"); return
         }
         guard accessibilityElement("activity-room", in: window) != nil,
               accessibilityElement("activity-session-heading", in: window) == nil,
@@ -749,7 +750,7 @@ enum DebugTools {
         guard let room = room(in: window.contentView), room.bounds.height > 180 else {
             smokeFailure("The room has insufficient space in the activity page"); return
         }
-        guard await click("activity-view-stats", in: window) else { return }
+        guard await click("navigation-Stats", in: window), model.section == .statistics else { return }
         try? await Task.sleep(for: .milliseconds(800))
         guard room.showsStats, !room.isTransitioning,
               await click("activity-day-\(model.activity.endDate.timeIntervalSince1970)", in: window),
@@ -763,17 +764,24 @@ enum DebugTools {
             smokeFailure("Closing daily sessions did not return to Activity"); return
         }
         guard await click("navigation-Settings", in: window), model.section == .settings else {
-            smokeFailure("The bottom navigation could not open Settings"); return
+            smokeFailure("The Settings tab did not open Settings"); return
+        }
+        guard await click("navigation-Settings", in: window), model.section == .settings else {
+            smokeFailure("Clicking the selected Settings tab unexpectedly navigated away"); return
         }
         for appearance in AppAppearance.allCases {
             guard await click("theme-\(appearance.rawValue)", in: window), model.preferences.appearance == appearance else {
                 smokeFailure("Theme selection did not apply \(appearance.title)"); return
             }
         }
-        guard await click("navigation-Activity", in: window), model.section == .sessions else {
-            smokeFailure("The bottom navigation could not switch between Settings and Activity"); return
+        guard await click("navigation-Stats", in: window), model.section == .statistics else { return }
+        try? await Task.sleep(for: .milliseconds(900))
+        guard accessibilityElement("activity-week-total", in: window) != nil,
+              await click("navigation-Room", in: window), model.section == .sessions else {
+            smokeFailure("Direct Settings → Stats → Room navigation failed"); return
         }
-        print("PASS: Activity/Settings navigation, desk-screen stats, daily sessions, and all five themes work with real clicks")
+        try? await Task.sleep(for: .milliseconds(800))
+        print("PASS: Room/Stats/Settings tabs, direct statistics access, daily sessions, and all five themes work with real clicks")
     }
 
     @MainActor private static func accessibilityElement(_ identifier: String, in root: AnyObject) -> AnyObject? {
@@ -794,7 +802,7 @@ enum DebugTools {
         guard let frame = element.accessibilityFrame?(), !frame.isEmpty else { return false }
         let point = window.convertPoint(fromScreen: NSPoint(x: frame.midX, y: frame.midY))
         // Mouse events exercise hit testing; accessibilityPerformPress would bypass an
-        // invisible background view intercepting clicks on the sidebar or activity grid.
+        // invisible background view intercepting clicks on navigation or the activity grid.
         for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
             guard let event = NSEvent.mouseEvent(with: type, location: point, modifierFlags: [],
                 timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
@@ -803,6 +811,20 @@ enum DebugTools {
         }
         try? await Task.sleep(for: .milliseconds(300))
         return true
+    }
+
+    @MainActor private static func reveal(_ identifier: String, in window: NSWindow) async {
+        guard let frame = accessibilityElement(identifier, in: window)?.accessibilityFrame?() else { return }
+        func scroll(in view: NSView) {
+            if let scrollView = view as? NSScrollView, let document = scrollView.documentView {
+                let target = document.convert(window.convertFromScreen(frame), from: nil)
+                document.scrollToVisible(target.insetBy(dx: 0, dy: -16))
+            } else {
+                view.subviews.forEach { scroll(in: $0) }
+            }
+        }
+        if let content = window.contentView { scroll(in: content) }
+        try? await Task.sleep(for: .milliseconds(300))
     }
 
     @MainActor private static func textFields(in view: NSView?) -> [NSTextField] {
@@ -860,6 +882,38 @@ enum DebugTools {
             smokeFailure("Menu-bar music switch lost timer state or kept rendering the hidden room"); return
         }
         print("PASS: one button switches the menu-bar popup between music/timer and the cozy room")
+        guard let studio = NSApp.windows.first(where: { $0.title == "Lofitime" }) else {
+            smokeFailure("The main window is missing for popup navigation"); return
+        }
+        for showsRoom in [false, true] {
+            model.menuBarShowsRoom = showsRoom
+            for (identifier, section) in [("menu-bar-settings", StudioSection.settings), ("menu-bar-stats", .statistics), ("menu-bar-open-app", .sessions)] {
+                studio.orderOut(nil)
+                panel.makeKeyAndOrderFront(nil)
+                try? await Task.sleep(for: .milliseconds(300))
+                guard await click(identifier, in: panel), model.section == section,
+                      studio.isVisible, !panel.isVisible else {
+                    smokeFailure("Popup shortcut \(identifier) failed to dismiss the popup and open the right full-window page"); return
+                }
+                try? await Task.sleep(for: .milliseconds(900))
+                if section == .statistics, accessibilityElement("activity-week-total", in: studio) == nil {
+                    smokeFailure("The popup Stats shortcut did not reveal statistics directly"); return
+                }
+            }
+        }
+        model.menuBarShowsRoom = false
+        studio.close()
+        panel.makeKeyAndOrderFront(nil)
+        try? await Task.sleep(for: .milliseconds(300))
+        guard await click("menu-bar-stats", in: panel) else { return }
+        try? await Task.sleep(for: .milliseconds(900))
+        guard let reopened = NSApp.windows.first(where: { $0.title == "Lofitime" && $0.isVisible }),
+              accessibilityElement("activity-week-total", in: reopened) != nil,
+              await click("navigation-Room", in: reopened) else {
+            smokeFailure("The Stats shortcut could not reopen a closed full window"); return
+        }
+        panel.makeKeyAndOrderFront(nil)
+        print("PASS: popup shortcuts open the right page, dismiss either popup view, and reopen a closed full window")
     }
 
     @MainActor private static func smokeRoomGestures(_ room: StudyRoomScene.RoomView, in window: NSWindow) async {
@@ -923,7 +977,20 @@ enum DebugTools {
     }
 
     @MainActor private static func smokeRoomModels() {
-        for minutes in [0, 25, 120, 360, 720] {
+        // Verify every bundled mesh actually imports with normals, UVs and a local palette.
+        // Missing copied resources or a broken OBJ import must not silently leave empty furniture.
+        for model in RoomFurniture.Model.allCases {
+            let node = RoomFurniture.node(model, size: SCNVector3(1, 1, 1), theme: .candlelight)
+            var imported = false
+            node.enumerateHierarchy { child, _ in
+                guard let geometry = child.geometry else { return }
+                imported = !geometry.sources(for: .vertex).isEmpty && !geometry.sources(for: .normal).isEmpty
+                    && !geometry.sources(for: .texcoord).isEmpty && geometry.elements.contains { $0.primitiveCount > 0 }
+                    && geometry.firstMaterial?.diffuse.contents is NSImage
+            }
+            guard imported else { smokeFailure("Missing or untextured imported mesh: \(model.rawValue)"); return }
+        }
+        for minutes in [0, 25, 120, 360, 780] {
             let now = Date()
             let records = [SessionRecord(finishedAt: now, duration: Double(minutes) * 60, intention: "Room diagnostic")]
             let growth = FocusRoom(records: records, through: now)
@@ -948,9 +1015,9 @@ enum DebugTools {
                       scene.rootNode.childNode(withName: "bookshelf", recursively: true) == nil else {
                     smokeFailure("An empty room already has grown decor"); return
                 }
-            } else if minutes == 720 {
+            } else if minutes == 780 {
                 for name in ["rug", "desk-lamp", "floor-lamp", "bookshelf", "hanging-plants", "blossom", "fairy-lights", "sleeping-cat",
-                             "pinboard", "open-notebook", "knitted-pouf", "bedside-candle", "keepsake-shelf", "desktop-screen"] {
+                             "pinboard", "open-notebook", "reading-chair", "bedside-candle", "keepsake-shelf", "desktop-screen"] {
                     guard scene.rootNode.childNode(withName: name, recursively: true) != nil else {
                         smokeFailure("A fully grown room is missing \(name)"); return
                     }
@@ -971,7 +1038,7 @@ enum DebugTools {
             guard !view.isPlaying, scene.isPaused else { smokeFailure("An offscreen room kept rendering"); return }
             view.scene = nil
         }
-        print("PASS: all five room stages contain real 3D furniture, bounded books/plants, lights, and an idle offscreen renderer")
+        print("PASS: 17 bundled textured KayKit models import correctly; room stages, bounded growth, and offscreen rendering work")
     }
 
     private static func smokeFailure(_ message: String) {
@@ -1009,7 +1076,7 @@ enum DebugTools {
         await smokeRoomGestures(room, in: window)
         let scene = room.scene
         let camera = room.cameraState
-        guard await click("activity-view-stats", in: window) else { return }
+        guard await click("navigation-Stats", in: window) else { return }
         if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
             guard room.isTransitioning, let node = room.pointOfView,
                   abs(node.presentation.position.x - node.position.x) > 0.01 else {
@@ -1028,7 +1095,7 @@ enum DebugTools {
               await click("activity-close-details", in: window),
               await click("activity-month-current", in: window),
               accessibilityElement("activity-session-heading", in: window) == nil,
-              await click("activity-view-stats", in: window) else {
+              await click("navigation-Room", in: window) else {
             smokeFailure("Weekly/monthly browsing changed room growth or lost historical sessions"); return
         }
         try? await Task.sleep(for: .milliseconds(800))
@@ -1037,7 +1104,7 @@ enum DebugTools {
         }
         // The normal stats layout must stay readable and fill the pane at the smallest size.
         window.setContentSize(CGSize(width: 660, height: 500))
-        guard await click("activity-view-stats", in: window) else { return }
+        guard await click("navigation-Stats", in: window) else { return }
         try? await Task.sleep(for: .milliseconds(800))
         guard let total = accessibilityElement("activity-month-total", in: window)?.accessibilityFrame?(), total.height >= 30,
               let footer = accessibilityElement("activity-all-time", in: window)?.accessibilityFrame?(),
@@ -1045,15 +1112,15 @@ enum DebugTools {
               room.desktopHost?.frame == room.bounds else {
             smokeFailure("Stats remained scaled to the monitor or clipped in the compact window (room: \(room.bounds), total: \(String(describing: accessibilityElement("activity-month-total", in: window)?.accessibilityFrame?())), footer: \(String(describing: accessibilityElement("activity-all-time", in: window)?.accessibilityFrame?())))"); return
         }
-        guard await click("activity-view-stats", in: window) else { return }
+        guard await click("navigation-Room", in: window) else { return }
         if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion, !room.isTransitioning {
             smokeFailure("Back to room did not animate the camera out"); return
         }
         // Reverse an in-flight return; stale completions must not hide the reopened page.
-        guard await click("activity-view-stats", in: window) else { return }
+        guard await click("navigation-Stats", in: window) else { return }
         try? await Task.sleep(for: .milliseconds(800))
         guard room.showsStats, !room.isTransitioning, room.desktopHost?.isHidden == false,
-              await click("activity-view-stats", in: window) else {
+              await click("navigation-Room", in: window) else {
             smokeFailure("Quickly reversing the stats transition left a stale page"); return
         }
         try? await Task.sleep(for: .milliseconds(800))
@@ -1144,7 +1211,7 @@ enum DebugTools {
         model.section = .sessions
         model.preferences.appearance = appearance
         try await render(StudioView(model: model).frame(width: size.width, height: size.height), to: url, prepare: { window in
-            if showStats { _ = await click("activity-view-stats", in: window) }
+            if showStats { _ = await click("navigation-Stats", in: window) }
         })
         if appearance == .candlelight && !showStats {
             model.menuBarShowsRoom = true

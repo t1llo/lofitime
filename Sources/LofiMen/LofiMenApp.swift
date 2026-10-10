@@ -109,7 +109,7 @@ private struct RoomCommands: Commands {
             Divider()
             Button(model.player.isPlaying ? "Pause Music" : "Play Music") { model.player.toggle() }
                 .keyboardShortcut("p", modifiers: [.command, .shift])
-            Button("Activity") { show(.sessions) }.keyboardShortcut("2", modifiers: .command)
+            Button("View Stats") { show(.statistics) }.keyboardShortcut("2", modifiers: .command)
         }
     }
 

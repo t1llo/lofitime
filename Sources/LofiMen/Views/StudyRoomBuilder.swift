@@ -3,11 +3,11 @@ import LofiMenCore
 import SceneKit
 import SwiftUI
 
-/// Original, softly rounded miniature models. Everything is local geometry, including the
-/// plants, city outside the window, woven textiles, and individual books on the shelves.
+/// KayKit furniture with a custom room shell, computer, growing foliage and animated details.
 @MainActor final class StudyRoomBuilder {
     let scene = SCNScene()
     private let growth: FocusRoom
+    private let theme: RoomTheme
     private let wood = color(0xB98561)
     private let darkWood = color(0x725444)
     private let cream = color(0xF3DFC0)
@@ -23,6 +23,7 @@ import SwiftUI
 
     private init(growth: FocusRoom, theme: RoomTheme) {
         self.growth = growth
+        self.theme = theme
         fabric = NSColor(theme.accent).blended(withFraction: 0.2, of: Self.color(0xB5A294))!
         leaf = NSColor(theme.activity).blended(withFraction: 0.45, of: Self.color(0x497E5D))!
         wall = NSColor(theme.accent).blended(withFraction: 0.78, of: Self.color(0xD8C7B0))!
@@ -147,15 +148,7 @@ import SwiftUI
     }
 
     private func desk() {
-        let desk = group("desk", at: SCNVector3(-2.28, 0, -1.04))
-        box(desk, (2.92, 0.14, 1.36), at: SCNVector3(0, 1.30, 0), color: wood, radius: 0.07)
-        for x in [-1.24, 1.24] {
-            for z in [-0.49, 0.49] {
-                box(desk, (0.10, 1.25, 0.10), at: SCNVector3(x, 0.65, z), color: darkWood)
-            }
-        }
-        box(desk, (0.69, 0.30, 1.02), at: SCNVector3(0.94, 1.08, 0), color: wood)
-        box(desk, (0.20, 0.035, 0.055), at: SCNVector3(0.94, 1.08, 0.54), color: cream, radius: 0.015)
+        furniture(.desk, name: "desk", size: SCNVector3(2.92, 1.34, 1.36), at: SCNVector3(-2.28, 0.04, -1.04))
         let computer = group("computer", at: SCNVector3(-2.53, 1.39, -1.34))
         box(computer, (0.49, 0.05, 0.34), at: SCNVector3(0, 0.02, 0), color: cream)
         box(computer, (0.10, 0.24, 0.10), at: SCNVector3(0, 0.15, -0.05), color: cream)
@@ -172,101 +165,48 @@ import SwiftUI
             }
         }
         orb(computer, size: SCNVector3(0.06, 0.025, 0.085), at: SCNVector3(0.56, 0.035, 0.43), color: cream)
-        let chair = group("chair", at: SCNVector3(-2.22, 0, 0.38))
-        for x in [-0.31, 0.31] {
-            for z in [-0.27, 0.27] {
-                rod(chair, from: SCNVector3(x * 1.22, 0.04, z * 1.2), to: SCNVector3(x, 0.68, z), radius: 0.042, color: darkWood)
-            }
-        }
-        box(chair, (0.84, 0.16, 0.75), at: SCNVector3(0, 0.69, 0), color: fabric, radius: 0.12)
-        for x in [-0.30, 0.30] {
-            rod(chair, from: SCNVector3(x, 0.69, 0.3), to: SCNVector3(x, 1.25, 0.37), radius: 0.035, color: wood)
-        }
-        box(chair, (0.83, 0.43, 0.12), at: SCNVector3(0, 1.18, 0.37), color: fabric, radius: 0.13)
+        furniture(.chair, name: "chair", size: SCNVector3(0.84, 1.40, 0.90), at: SCNVector3(-2.22, 0.04, 0.38), yaw: .pi)
     }
 
     private func bed() {
-        let bed = group("bed", at: SCNVector3(2.58, 0, -0.65))
-        for x in [-0.91, 0.91] {
-            for z in [-1.14, 1.14] {
-                cylinder(bed, radius: 0.07, height: 0.37, at: SCNVector3(x, 0.20, z), color: darkWood)
-            }
-        }
-        box(bed, (2.12, 0.20, 2.57), at: SCNVector3(0, 0.40, 0), color: wood, radius: 0.08)
-        box(bed, (2.14, 1.09, 0.14), at: SCNVector3(0, 0.82, -1.25), color: wood, radius: 0.16)
-        box(bed, (2.01, 0.30, 2.46), at: SCNVector3(0, 0.64, 0), color: cream, radius: 0.16)
-        box(bed, (2.02, 0.13, 1.65), at: SCNVector3(0, 0.82, 0.37), color: fabric, radius: 0.12)
-        box(bed, (2.00, 0.10, 0.22), at: SCNVector3(0, 0.90, -0.33), color: cream, radius: 0.045)
-        let pillow = box(bed, (1.25, 0.20, 0.54), at: SCNVector3(0, 0.91, -0.88), color: cream, radius: 0.16)
-        pillow.eulerAngles.z = 0.025
+        furniture(.bed, name: "bed", size: SCNVector3(2.32, 1.22, 2.65), at: SCNVector3(2.50, 0.04, -0.65))
         if growth.minutes >= 300 {
-            let cushion = box(bed, (0.52, 0.26, 0.53), at: SCNVector3(0.51, 1.05, -0.52), color: pink, radius: 0.15, name: "cozy-pillow")
-            cushion.eulerAngles = SCNVector3(0.1, 0.24, 0.1)
-            box(bed, (2.03, 0.09, 0.61), at: SCNVector3(0, 0.92, 0.83), color: leaf, radius: 0.05)
-            for i in 0..<13 {
-                box(bed, (0.026, 0.013, 0.59), at: SCNVector3(-0.92 + Double(i) * 0.15, 0.973, 0.83), color: cream, radius: 0.006)
-            }
-            // A folded throw drapes over the footboard, with individually modeled tassels.
-            box(bed, (1.38, 0.48, 0.065), at: SCNVector3(-0.18, 0.64, 1.23), color: leaf, radius: 0.045)
-            for i in 0..<12 {
-                rod(bed, from: SCNVector3(-0.80 + Double(i) * 0.115, 0.43, 1.25),
-                    to: SCNVector3(-0.80 + Double(i) * 0.115, 0.32, 1.27), radius: 0.014, color: cream)
-            }
-            let roundCushion = orb(bed, size: SCNVector3(0.26, 0.24, 0.14), at: SCNVector3(-0.58, 1.04, -0.64), color: leaf)
-            orb(roundCushion, size: SCNVector3(0.1, 0.1, 0.14), at: SCNVector3(0, 0, 1), color: cream)
+            furniture(.pillow, name: "cozy-pillow", size: SCNVector3(0.55, 0.17, 0.43), at: SCNVector3(3.04, 0.93, -1.16), yaw: 0.25)
+            furniture(.cushion, name: "cozy-cushion", size: SCNVector3(0.50, 0.17, 0.41), at: SCNVector3(1.97, 0.93, -1.20), yaw: -0.18)
         }
     }
 
     private func rug() {
-        let rug = group("rug", at: SCNVector3(-0.2, 0.045, 0.60))
-        box(rug, (3.28, 0.035, 2.16), at: SCNVector3Zero, color: cream, radius: 0.12)
-        box(rug, (3.04, 0.015, 1.93), at: SCNVector3(0, 0.025, 0), color: fabric, radius: 0.10)
-        box(rug, (2.80, 0.009, 1.68), at: SCNVector3(0, 0.039, 0), color: pink, radius: 0.08)
-        for index in 0..<22 {
-            for side in [-1.0, 1.0] {
-                box(rug, (0.035, 0.022, 0.16), at: SCNVector3(-1.47 + Double(index) * 0.14, 0, side * 1.11), color: cream, radius: 0.015)
-            }
-        }
-        for i in -2...2 {
-            let motif = box(rug, (0.31, 0.012, 0.31), at: SCNVector3(Double(i) * 0.51, 0.05, 0), color: cream, radius: 0.025)
-            motif.eulerAngles.y = .pi / 4
-        }
+        furniture(.rug, name: "rug", size: SCNVector3(3.28, 0.045, 2.16), at: SCNVector3(-0.2, 0.04, 0.60))
     }
 
     private func bookshelf() {
-        let shelf = group("bookshelf", at: SCNVector3(0.37, 0.05, -1.88))
-        box(shelf, (1.36, 2.63, 0.07), at: SCNVector3(0, 1.38, -0.17), color: darkWood)
-        for x in [-0.71, 0.71] {
-            box(shelf, (0.09, 2.84, 0.46), at: SCNVector3(x, 1.42, 0), color: wood)
+        let shelf = group("bookshelf", at: SCNVector3(0.37, 0, -1.88))
+        for row in 0..<4 {
+            let model = RoomFurniture.node(.shelf, size: SCNVector3(1.40, 0.28, 0.46), theme: theme)
+            model.position.y = 0.25 + Double(row) * 0.66
+            shelf.addChildNode(model)
         }
-        for i in 0..<5 {
-            box(shelf, (1.51, 0.09, 0.48), at: SCNVector3(0, 0.13 + Double(i) * 0.66, 0), color: wood)
-        }
-        let colors = [fabric, leaf, pink, cream, Self.color(0x869BAC), Self.color(0xB88E67)]
         for index in 0..<growth.bookCount {
             let row = index / 6
             let height = 0.37 + Double((index * 7) % 4) * 0.038
             let x = -0.54 + Double(index % 6) * 0.20
-            let y = 0.19 + Double(row) * 0.66
-            let book = box(shelf, (0.14, height, 0.29), at: SCNVector3(x, y + height / 2, 0.015), color: colors[index % colors.count], radius: 0.013, name: "book-\(index)")
-            for offset in [-0.32, 0.32] {
-                box(book, (0.115, 0.018, 0.008), at: SCNVector3(0, height * offset, 0.149), color: cream, radius: 0.003)
-            }
+            let book = RoomFurniture.node(.book, size: SCNVector3(0.14, height, 0.29), theme: theme)
+            book.name = "book-\(index)"
+            book.eulerAngles.y = .pi
+            book.position = SCNVector3(x, 0.53 + Double(row) * 0.66, 0.015)
+            shelf.addChildNode(book)
         }
-        plant(at: SCNVector3(0.44, 2.88, -1.9), size: 0.48, flowering: growth.minutes >= 540, name: "shelf-plant")
+        furniture(.ledge, name: "plant-shelf", size: SCNVector3(0.55, 0.15, 0.38), at: SCNVector3(0.57, 3.13, -1.90))
+        furniture(.cactus, name: "shelf-cactus", size: SCNVector3(0.34, 0.38, 0.34), at: SCNVector3(0.57, 3.18, -1.87))
     }
 
     private func lamp(at position: SCNVector3, floor: Bool) {
-        let lamp = group(floor ? "floor-lamp" : "desk-lamp", at: position)
-        let height = floor ? 1.94 : 0.60
-        cylinder(lamp, radius: floor ? 0.23 : 0.16, height: 0.07, at: SCNVector3(0, 0.035, 0), color: darkWood)
-        rod(lamp, from: SCNVector3(0, 0.06, 0), to: SCNVector3(0, height, 0), radius: floor ? 0.028 : 0.022, color: wood)
-        let shade = SCNCone(topRadius: floor ? 0.22 : 0.12, bottomRadius: floor ? 0.40 : 0.25, height: floor ? 0.42 : 0.25)
-        shade.radialSegmentCount = 40
-        let cover = node(shade, color: floor ? cream : fabric, at: SCNVector3(0, height, 0))
-        cover.geometry?.firstMaterial?.emission.contents = Self.color(0x594224)
-        lamp.addChildNode(cover)
-        let bulb = orb(lamp, size: SCNVector3(0.09, 0.065, 0.09), at: SCNVector3(0, height - 0.13, 0), color: cream)
+        let height = floor ? 2.18 : 0.61
+        let width = floor ? 0.80 : 0.58
+        let lamp = furniture(floor ? .floorLamp : .tableLamp, name: floor ? "floor-lamp" : "desk-lamp",
+                             size: SCNVector3(width, height, width), at: position)
+        let bulb = orb(lamp, size: SCNVector3(0.09, 0.045, 0.09), at: SCNVector3(0, height * 0.72, 0), color: cream)
         bulb.geometry?.firstMaterial?.emission.contents = Self.color(0xFFD68D)
         let light = SCNLight()
         light.type = .omni
@@ -278,12 +218,10 @@ import SwiftUI
     }
 
     private func wallArt() {
-        let art = group("wall-art", at: SCNVector3(2.52, 2.89, -2.04))
-        box(art, (1.22, 1.26, 0.08), at: SCNVector3Zero, color: wood)
-        box(art, (1.07, 1.11, 0.02), at: SCNVector3(0, 0, 0.055), color: cream)
-        orb(art, size: SCNVector3(0.25, 0.25, 0.018), at: SCNVector3(0.13, 0.21, 0.079), color: pink)
+        let art = furniture(.frame, name: "wall-art", size: SCNVector3(1.52, 0.96, 0.12), at: SCNVector3(2.52, 2.50, -2.04))
+        orb(art, size: SCNVector3(0.19, 0.19, 0.018), at: SCNVector3(0.24, 0.62, 0.069), color: pink)
         for index in 0..<3 {
-            let hill = orb(art, size: SCNVector3(0.27, 0.15, 0.015), at: SCNVector3(-0.25 + Double(index) * 0.23, -0.24 + Double(index % 2) * 0.10, 0.10), color: index == 1 ? leaf : fabric)
+            let hill = orb(art, size: SCNVector3(0.27, 0.15, 0.015), at: SCNVector3(-0.30 + Double(index) * 0.29, 0.28 + Double(index % 2) * 0.08, 0.08), color: index == 1 ? leaf : fabric)
             hill.eulerAngles.z = Double(index - 1) * 0.25
         }
     }
@@ -331,33 +269,14 @@ import SwiftUI
     }
 
     private func readingNook() {
-        let pouf = group("knitted-pouf", at: SCNVector3(-0.27, 0.30, 1.21))
-        orb(pouf, size: SCNVector3(0.49, 0.27, 0.44), at: SCNVector3Zero, color: fabric)
-        for index in 0..<12 {
-            let angle = Double(index) * .pi * 2 / 12
-            let stitch = SCNTorus(ringRadius: 0.265, pipeRadius: 0.012)
-            let seam = node(stitch, color: cream, at: SCNVector3Zero)
-            seam.eulerAngles = SCNVector3(.pi / 2, angle, 0)
-            seam.scale = SCNVector3(1.69, 1, 0.95)
-            pouf.addChildNode(seam)
-        }
-        let cushion = box(root, (0.61, 0.15, 0.60), at: SCNVector3(0.55, 0.13, 1.51), color: pink, radius: 0.11, name: "floor-cushion")
-        cushion.eulerAngles.y = 0.3
-        orb(cushion, size: SCNVector3(0.035, 0.014, 0.035), at: SCNVector3(0, 0.077, 0), color: cream)
+        furniture(.armchair, name: "reading-chair", size: SCNVector3(1.23, 0.91, 1.09), at: SCNVector3(-0.30, 0.085, 0.92), yaw: -0.22)
+        furniture(.cushion, name: "floor-cushion", size: SCNVector3(0.55, 0.17, 0.43), at: SCNVector3(0.69, 0.085, 1.41), yaw: 0.3)
     }
 
     private func bedsideDetails() {
-        let table = group("bedside-table", at: SCNVector3(3.74, 0, -1.57))
-        box(table, (0.56, 0.09, 0.63), at: SCNVector3(0, 0.66, 0), color: wood)
-        for x in [-0.21, 0.21] {
-            for z in [-0.25, 0.25] {
-                rod(table, from: SCNVector3(x, 0.04, z), to: SCNVector3(x, 0.66, z), radius: 0.035, color: darkWood)
-            }
-        }
-        for i in 0..<3 {
-            box(table, (0.35, 0.055, 0.37), at: SCNVector3(0, 0.74 + Double(i) * 0.06, 0), color: [leaf, pink, cream][i], radius: 0.01)
-        }
-        let candle = group("bedside-candle", at: SCNVector3(3.75, 0.9, -1.56))
+        furniture(.cabinet, name: "bedside-table", size: SCNVector3(0.53, 0.69, 0.58), at: SCNVector3(3.91, 0.04, -1.57))
+        furniture(.books, name: "bedside-books", size: SCNVector3(0.33, 0.24, 0.18), at: SCNVector3(3.91, 0.73, -1.71))
+        let candle = group("bedside-candle", at: SCNVector3(3.91, 0.73, -1.42))
         cylinder(candle, radius: 0.092, height: 0.15, at: SCNVector3(0, 0.075, 0), color: cream)
         let flame = orb(candle, size: SCNVector3(0.025, 0.06, 0.025), at: SCNVector3(0, 0.2, 0), color: cream)
         flame.geometry?.firstMaterial?.emission.contents = Self.color(0xFFC16A)
@@ -377,17 +296,11 @@ import SwiftUI
     }
 
     private func keepsakeShelf() {
-        let shelf = group("keepsake-shelf", at: SCNVector3(2.54, 2.07, -1.95))
-        box(shelf, (1.94, 0.085, 0.32), at: SCNVector3Zero, color: wood)
-        for x in [-0.72, 0.72] {
-            rod(shelf, from: SCNVector3(x, -0.3, -0.06), to: SCNVector3(x, 0, 0.11), radius: 0.025, color: darkWood)
-        }
-        let photo = box(shelf, (0.28, 0.35, 0.045), at: SCNVector3(-0.54, 0.22, 0), color: cream)
-        box(photo, (0.21, 0.28, 0.005), at: SCNVector3(0, 0, 0.028), color: pink)
-        orb(photo, size: SCNVector3(0.075, 0.075, 0.012), at: SCNVector3(0, 0.015, 0.04), color: fabric)
-        plant(at: SCNVector3(3.19, 2.15, -1.91), size: 0.43, flowering: true, name: "bedside-flowers")
+        let shelf = furniture(.ledge, name: "keepsake-shelf", size: SCNVector3(1.94, 0.25, 0.32), at: SCNVector3(2.54, 1.88, -1.94))
+        furniture(.photo, name: "keepsake-photo", size: SCNVector3(0.30, 0.37, 0.23), at: SCNVector3(2.00, 1.97, -1.89))
+        plant(at: SCNVector3(3.19, 1.97, -1.91), size: 0.43, flowering: true, name: "bedside-flowers")
         let bunny = SCNNode()
-        bunny.position = SCNVector3(0.02, 0.14, 0)
+        bunny.position = SCNVector3(0.02, 0.20, 0.06)
         shelf.addChildNode(bunny)
         orb(bunny, size: SCNVector3(0.115, 0.12, 0.095), at: SCNVector3Zero, color: cream)
         for side in [-1.0, 1.0] {
@@ -454,7 +367,7 @@ import SwiftUI
     }
 
     private func sleepingCat() {
-        let cat = group("sleeping-cat", at: SCNVector3(2.43, 1.02, 0.05))
+        let cat = group("sleeping-cat", at: SCNVector3(2.43, 0.96, 0.05))
         let fur = Self.color(0xD4AD7E)
         orb(cat, size: SCNVector3(0.37, 0.20, 0.26), at: SCNVector3Zero, color: fur)
         orb(cat, size: SCNVector3(0.19, 0.18, 0.16), at: SCNVector3(-0.24, 0.10, 0.13), color: fur)
@@ -489,6 +402,14 @@ import SwiftUI
     }
 
     private static func color(_ value: UInt32) -> NSColor { NSColor(Color(hex: value)) }
+
+    @discardableResult private func furniture(_ model: RoomFurniture.Model, name: String, size: SCNVector3,
+                                             at position: SCNVector3, yaw: Double = 0) -> SCNNode {
+        let group = group(name, at: position)
+        group.eulerAngles.y = yaw
+        group.addChildNode(RoomFurniture.node(model, size: size, theme: theme))
+        return group
+    }
 
     private func group(_ name: String, at position: SCNVector3) -> SCNNode {
         let group = SCNNode()

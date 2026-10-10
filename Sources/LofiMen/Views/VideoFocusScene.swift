@@ -6,7 +6,6 @@ struct VideoFocusScene: View {
     @Environment(\.roomTheme) private var theme
     @Bindable var model: AppModel
     let presentation: VideoPresentation
-    var openStudio: (() -> Void)?
     var showRoom: (() -> Void)?
     private var compact: Bool { presentation == .menuBar }
 
@@ -64,10 +63,6 @@ struct VideoFocusScene: View {
                 if let showRoom {
                     OverlayIconButton(symbol: "house", label: "Show my cozy room", size: 30, action: showRoom)
                         .accessibilityIdentifier("menu-bar-room-toggle")
-                }
-                if let openStudio {
-                    OverlayIconButton(symbol: "slider.horizontal.3", label: "Open settings", size: 30, action: openStudio)
-                        .accessibilityIdentifier("menu-bar-settings")
                 }
                 Menu {
                     Button("Quit Lofitime") { NSApp.terminate(nil) }

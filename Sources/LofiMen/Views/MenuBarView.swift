@@ -3,24 +3,29 @@ import LofiMenCore
 import SwiftUI
 
 struct MenuBarView: View {
-    static let size = CGSize(width: 320, height: 360)
+    static let size = CGSize(width: 320, height: 404)
+    static let contentSize = CGSize(width: 320, height: 360)
     static let cornerRadius: CGFloat = 20
     @Bindable var model: AppModel
     @Environment(\.openWindow) private var openWindow
+    @State private var popupWindow = PopupWindowReference()
     private var theme: RoomTheme { model.preferences.appearance.palette }
 
     var body: some View {
-        Group {
-            if model.menuBarShowsRoom {
-                roomPanel
-            } else {
-                VideoFocusScene(model: model, presentation: .menuBar, openStudio: openSettings,
-                                showRoom: { model.menuBarShowsRoom = true })
-            }
+        VStack(spacing: 0) {
+            Group {
+                if model.menuBarShowsRoom {
+                    roomPanel
+                } else {
+                    VideoFocusScene(model: model, presentation: .menuBar,
+                                    showRoom: { model.menuBarShowsRoom = true })
+                }
+            }.frame(height: Self.contentSize.height)
+            navigation
         }
         .frame(width: Self.size.width, height: Self.size.height)
         .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous))
-        .background(MenuBarWindowAppearance())
+        .background(MenuBarWindowAppearance(target: popupWindow))
         .environment(\.roomTheme, model.preferences.appearance.palette)
         .preferredColorScheme(.dark)
         .onAppear { model.sync.refreshIfNeeded() }
@@ -29,18 +34,11 @@ struct MenuBarView: View {
     private var roomPanel: some View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
-                Text("My little study").font(.room(size: 14, weight: .medium))
+                Text("Your room").font(.room(size: 14, weight: .medium))
                 Spacer(minLength: 0)
                 OverlayIconButton(symbol: "headphones", label: "Show music and timer", action: { model.menuBarShowsRoom = false })
                     .accessibilityIdentifier("menu-bar-room-toggle")
-                OverlayIconButton(symbol: "slider.horizontal.3", label: "Open settings", action: openSettings)
-                    .accessibilityIdentifier("menu-bar-settings")
                 Menu {
-                    Button("Open my room") {
-                        model.section = .sessions
-                        openWindow(id: "studio")
-                        NSApp.activate(ignoringOtherApps: true)
-                    }
                     Button("Quit Lofitime") { NSApp.terminate(nil) }
                 } label: {
                     Image(systemName: "ellipsis").font(.system(size: 11, weight: .medium)).frame(width: 30, height: 30)
@@ -78,8 +76,28 @@ struct MenuBarView: View {
         }.padding(16).foregroundStyle(theme.text).background(theme.surface)
     }
 
-    private func openSettings() {
-        model.section = .settings
+    private var navigation: some View {
+        HStack(spacing: 0) {
+            Button { show(.sessions) } label: {
+                Label("Open Lofitime", systemImage: "arrow.up.right.square")
+                    .frame(height: 44).contentShape(Rectangle())
+            }.foregroundStyle(theme.accent).accessibilityIdentifier("menu-bar-open-app")
+            Spacer(minLength: 8)
+            Button { show(.statistics) } label: {
+                Text("Stats").padding(.horizontal, 7).frame(height: 44).contentShape(Rectangle())
+            }.accessibilityIdentifier("menu-bar-stats").padding(.trailing, 7)
+            Button { show(.settings) } label: {
+                Text("Settings").frame(height: 44).contentShape(Rectangle())
+            }.accessibilityIdentifier("menu-bar-settings")
+        }.buttonStyle(.plain).font(.room(size: 11, weight: .medium))
+            .foregroundStyle(theme.text).padding(.horizontal, 16).frame(height: 44)
+            .background(theme.sidebar)
+            .overlay(alignment: .top) { Rectangle().fill(theme.line).frame(height: 1) }
+    }
+
+    private func show(_ section: StudioSection) {
+        model.section = section
+        popupWindow.window?.orderOut(nil)
         openWindow(id: "studio")
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -96,11 +114,20 @@ private struct MenuBarRoomScene: View {
     }
 }
 
+@MainActor private final class PopupWindowReference {
+    weak var window: NSWindow?
+}
+
 private struct MenuBarWindowAppearance: NSViewRepresentable {
+    let target: PopupWindowReference
     func makeNSView(context: Context) -> WindowAppearanceView { WindowAppearanceView() }
-    func updateNSView(_ nsView: WindowAppearanceView, context: Context) { nsView.applyAppearance() }
+    func updateNSView(_ nsView: WindowAppearanceView, context: Context) {
+        nsView.captureWindow = { target.window = $0 }
+        nsView.applyAppearance()
+    }
 
     final class WindowAppearanceView: NSView {
+        var captureWindow: ((NSWindow) -> Void)?
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             applyAppearance()
@@ -109,6 +136,7 @@ private struct MenuBarWindowAppearance: NSViewRepresentable {
         func applyAppearance() {
             DispatchQueue.main.async { [weak self] in
                 guard let window = self?.window else { return }
+                self?.captureWindow?(window)
                 window.isOpaque = false
                 window.backgroundColor = .clear
                 // The window's material and native hosting frame sit outside the

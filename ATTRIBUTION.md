@@ -4,4 +4,6 @@ Music and station artwork belong to [Lofi Girl](https://www.youtube.com/@LofiGir
 
 Automatic updates use [Sparkle](https://sparkle-project.org/). Its license and bundled third-party notices are included in the app at `Contents/Resources/Sparkle-LICENSE.txt`.
 
-The activity room's furniture, plants, flowers, textiles, and decorations are original models generated locally by Lofitime with SceneKit.
+The room uses **[KayKit: Furniture Bits 1.0](https://kaylousberg.itch.io/furniture-bits)** by **[Kay Lousberg](https://kaylousberg.com)**, released under **[CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/)**. The selected furniture, lamps, books, cactus, frames, cushions, and rug are bundled locally. Their original license and source revision are included in `Sources/LofiMen/Resources/RoomFurniture/` and in the app's resource bundle. Lofitime scales the models and recolors the fabric palette to match its themes.
+
+The room shell, computer, animated plants and flowers, and remaining decorations are original SceneKit geometry.

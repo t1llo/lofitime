@@ -8,34 +8,29 @@ struct StudioView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                BrandMark(size: 27)
+                Text("lofitime").font(.room(size: 15, weight: .medium))
+                Spacer(minLength: 16)
+                ForEach(StudioSection.allCases) { section in
+                    Button { model.section = section } label: {
+                        Label(section.rawValue, systemImage: section.symbol)
+                    }.buttonStyle(CalmButtonStyle(prominent: model.section == section, compact: true, expands: false))
+                        .accessibilityIdentifier("navigation-\(section.rawValue)")
+                        .accessibilityAddTraits(model.section == section ? .isSelected : [])
+                }
+            }.padding(.horizontal, 20).padding(.vertical, 12).padding(.top, 28)
+                .background(theme.sidebar)
+            Rectangle().fill(theme.line).frame(height: 1)
             Group {
-                if model.section == .sessions {
+                if model.section != .settings {
                     SessionsView(model: model)
                 } else {
                     ScrollView {
                         PreferencesView(model: model).padding(20)
                     }.scrollIndicators(.hidden)
                 }
-            }.frame(maxWidth: .infinity, maxHeight: .infinity).padding(.top, 28)
-            Rectangle().fill(theme.line).frame(height: 1)
-            HStack(spacing: 16) {
-                Button { model.section = .sessions } label: {
-                    HStack(spacing: 8) {
-                        BrandMark(size: 25)
-                        Text("lofitime").font(.room(size: 14, weight: .medium))
-                    }
-                }.buttonStyle(.plain).accessibilityLabel("Activity")
-                    .accessibilityIdentifier("navigation-Activity")
-                    .help("Back to your room")
-                Spacer(minLength: 4)
-                Text("\(focusTime(model.todayDuration)) today · \(model.todayRecords.count) \(model.todayRecords.count == 1 ? "session" : "sessions")")
-                    .font(.room(size: 11)).foregroundStyle(theme.muted)
-                Button { model.section = model.section == .settings ? .sessions : .settings } label: {
-                    Label("Settings", systemImage: "gearshape")
-                }.buttonStyle(CalmButtonStyle(prominent: model.section == .settings, compact: true, expands: false))
-                    .accessibilityIdentifier("navigation-Settings")
-                    .accessibilityAddTraits(model.section == .settings ? .isSelected : [])
-            }.padding(.horizontal, 20).padding(.vertical, 12).background(theme.sidebar)
+            }.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .font(.room(size: 12)).foregroundStyle(theme.text)
         .background(theme.background).tint(theme.accent)
