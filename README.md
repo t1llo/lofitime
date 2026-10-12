@@ -19,3 +19,7 @@ Listen to lo-fi music while you work. Finish focus sessions to add plants, books
 - Look back at your saved sessions and optionally sync history across Macs.
 
 [Keyboard shortcuts](https://lofi.beffa.xyz/docs/getting-started/#shortcuts) · [Third-party credits](ATTRIBUTION.md)
+
+## License
+
+Copyright © 2026 Tillo Beffa. Lofitime is free software under the [GNU General Public License](LICENSE), version 3 or later. Third-party music, artwork, and assets keep their own terms; see the [third-party credits](ATTRIBUTION.md).
