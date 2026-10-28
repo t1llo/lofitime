@@ -1,12 +1,18 @@
+# macOS runner minutes are billed at ten times the Linux rate, so pushes don't start this build: every change
+# is tested locally with `make check` first. Run it with `gh workflow run build.yml`, or open a pull request.
 name: Build
 
 on:
-  push:
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
+
+# A newer commit on the same branch or pull request replaces a run still in progress.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
